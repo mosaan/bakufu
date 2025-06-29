@@ -1,0 +1,24 @@
+### Bakufu Configuration File ###
+
+# ===
+# uses ollama as the AI provider to evaluate tasks without API costs.
+# qwen3 is "thinking" model with 1.7 billion parameters.
+# its output has `<think>` tags to indicate reasoning steps.
+# currently, bakufu does not care about these tags and treats them as normal text.
+# ===
+# default_provider: ollama/qwen3:1.7b
+
+# ===
+# alternatively, we can use gemma3 as the AI provider.
+# ===
+# gemma3 is a smaller model with 1 billion parameters.
+default_provider: ollama/gemma3:1b
+
+timeout_per_step: 60
+max_parallel_ai_calls: 3
+max_parallel_text_processing: 5
+log_level: INFO
+cache_enabled: true
+provider_settings:
+  ollama:
+    base_url: http://localhost:11434

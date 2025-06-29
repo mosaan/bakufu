@@ -1,0 +1,118 @@
+name: "文書解析器"
+description: "柔軟な入力形式で文書を解析する、MCP統合向けに設計されたワークフロー"
+
+input_parameters:
+  - name: "document"
+    type: "string"
+    required: true
+    description: "文書内容またはファイルパス（ファイル読み込みには@file:プレフィックスを使用）"
+  - name: "analysis_type"
+    type: "string"
+    required: false
+    default: "comprehensive"
+    description: "解析タイプ: 'comprehensive'（包括的）、'summary'（要約）、'sentiment'（感情）、'topics'（トピック）、または'key_points'（要点）"
+  - name: "output_format"
+    type: "string"
+    required: false
+    default: "structured"
+    description: "出力形式: 'structured'（構造化）、'json'、または'plain_text'（プレーンテキスト）"
+
+steps:
+  - id: "load_document"
+    type: "conditional"
+    condition: "{{ document.startswith('@file:') }}"
+    if_true:
+      - id: "process_file_input"
+        type: "text_process"
+        method: "extract_between_marker" 
+        input: "{{ document }}"
+        begin: "@file:"
+        end: ""
+        output_key: "file_spec"
+      - id: "set_document_content"
+        type: "text_process"
+        method: "replace"
+        input: "ファイル内容は統合入力プロセッサによって処理されます"
+        replacements:
+          - find: "ファイル内容は統合入力プロセッサによって処理されます"
+            replace: "{{ document }}"
+        output_key: "processed_document"
+    if_false:
+      - id: "use_direct_content"
+        type: "text_process"
+        method: "replace"
+        input: "{{ document }}"
+        replacements:
+          - find: ""
+            replace: ""
+        output_key: "processed_document"
+
+  - id: "analyze_document"
+    type: "ai_call"
+    prompt: |
+      以下の文書を解析してください。解析タイプ: {{ analysis_type }}
+
+      文書内容:
+      {{ load_document.processed_document if load_document.processed_document else document }}
+
+      解析指示:
+      {% if analysis_type == "comprehensive" %}
+      以下を含む包括的な解析を提供してください：
+      1. 文書要約（2-3文）
+      2. 主要なトピックとテーマ
+      3. 重要な洞察と発見
+      4. トーンと感情
+      5. 重要な引用またはデータポイント
+      6. 推奨事項やアクションアイテム（該当する場合）
+      {% elif analysis_type == "summary" %}
+      主要なポイントと結論を強調した文書の簡潔な要約を提供してください。
+      {% elif analysis_type == "sentiment" %}
+      以下を含む文書の感情とトーンを分析してください：
+      - 全体的な感情（ポジティブ/ネガティブ/中立）
+      - 感情的なトーン
+      - 信頼度レベル
+      - 感情を示すキーフレーズ
+      {% elif analysis_type == "topics" %}
+      文書で扱われている主要なトピック、テーマ、題材を特定してリストアップしてください。
+      {% elif analysis_type == "key_points" %}
+      文書から重要なポイント、事実、重要な情報を抽出してリストアップしてください。
+      {% else %}
+      文書内容と構造の一般的な分析を提供してください。
+      {% endif %}
+
+      出力形式: {{ output_format }}
+      {% if output_format == "structured" %}
+      読みやすくするため、明確な見出しと箇条書きで回答を整理してください。
+      {% elif output_format == "json" %}
+      適切なキーと構造を持つ有効なJSONとして回答を整理してください。
+      {% else %}
+      プレーンテキスト形式で回答を提供してください。
+      {% endif %}
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.3
+      max_tokens: 2000
+    output_key: "analysis_result"
+
+  - id: "format_final_output"
+    type: "text_process"
+    method: "replace"
+    input: |
+      # 文書解析レポート
+
+      **解析タイプ:** {{ analysis_type }}
+      **出力形式:** {{ output_format }}
+      **文書長:** {{ (load_document.processed_document if load_document.processed_document else document) | length }} 文字
+
+      ## 解析結果
+
+      {{ analyze_document.analysis_result }}
+
+      ---
+      *bakufu MCP統合により解析完了*
+    replacements:
+      - find: ""
+        replace: ""
+    output_key: "formatted_report"
+
+output_format: "{{ format_final_output.formatted_report }}"

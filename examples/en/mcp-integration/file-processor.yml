@@ -1,0 +1,197 @@
+name: "Interactive File Processor"
+description: "Processes files interactively with various operations, optimized for MCP tool usage"
+
+input_parameters:
+  - name: "file_path"
+    type: "string"
+    required: true
+    description: "Path to the file to process (supports @file: prefix for automatic loading)"
+  - name: "operation"
+    type: "string"
+    required: false
+    default: "analyze"
+    description: "Processing operation: 'analyze', 'summarize', 'extract', 'transform', 'validate', or 'convert'"
+  - name: "output_format"
+    type: "string"
+    required: false
+    default: "structured"
+    description: "Output format: 'structured', 'json', 'plain_text', 'markdown', or 'csv'"
+  - name: "specific_instructions"
+    type: "string"
+    required: false
+    default: "Process according to best practices"
+    description: "Specific instructions or requirements for the processing operation"
+
+steps:
+  - id: "detect_file_type"
+    type: "text_process"
+    method: "extract_between_marker"
+    input: "{{ file_path }}"
+    begin: "."
+    end: ""
+    output_key: "file_extension"
+    error_handling:
+      on_error: "continue"
+      fallback_value: "unknown"
+
+  - id: "load_file_content"
+    type: "conditional"
+    condition: "{{ file_path.startswith('@file:') }}"
+    if_true:
+      - id: "use_mcp_file_loading"
+        type: "text_process"
+        method: "replace"
+        input: "{{ file_path }}"
+        replacements:
+          - find: ""
+            replace: ""
+        output_key: "content"
+    if_false:
+      - id: "treat_as_direct_content"
+        type: "text_process"
+        method: "replace"
+        input: "{{ file_path }}"
+        replacements:
+          - find: ""
+            replace: ""
+        output_key: "content"
+
+  - id: "determine_processing_strategy"
+    type: "ai_call"
+    prompt: |
+      Based on the file extension "{{ detect_file_type.file_extension }}" and operation "{{ operation }}", 
+      determine the best processing strategy.
+
+      Available operations:
+      - analyze: Comprehensive analysis of content structure and meaning
+      - summarize: Create concise summary of main points
+      - extract: Extract specific information or data points
+      - transform: Convert or restructure the content
+      - validate: Check content quality, format, or compliance
+      - convert: Change format or structure
+
+      File extension: {{ detect_file_type.file_extension }}
+      Requested operation: {{ operation }}
+      Output format: {{ output_format }}
+
+      Provide a brief strategy description (1-2 sentences) for how to best process this file.
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.2
+      max_tokens: 200
+    output_key: "processing_strategy"
+
+  - id: "execute_operation"
+    type: "ai_call"
+    prompt: |
+      Execute the following file processing operation:
+
+      **File Content:**
+      {{ load_file_content.content }}
+
+      **Operation:** {{ operation }}
+      **Processing Strategy:** {{ determine_processing_strategy.processing_strategy }}
+      **Specific Instructions:** {{ specific_instructions }}
+      **Output Format:** {{ output_format }}
+
+      {% if operation == "analyze" %}
+      Provide a comprehensive analysis including:
+      1. Content structure and organization
+      2. Main topics and themes
+      3. Quality assessment
+      4. Key insights or findings
+      5. Recommendations for improvement or next steps
+
+      {% elif operation == "summarize" %}
+      Create a concise summary that captures:
+      1. Main points and key information
+      2. Essential details and conclusions
+      3. Important context and background
+      Keep the summary proportional to the original content length.
+
+      {% elif operation == "extract" %}
+      Extract relevant information such as:
+      1. Key data points and statistics
+      2. Important names, dates, and facts
+      3. Contact information or references
+      4. Action items or decisions
+      5. Any other valuable extractable information
+
+      {% elif operation == "transform" %}
+      Transform the content by:
+      1. Restructuring for better organization
+      2. Improving clarity and readability
+      3. Adapting tone or style as appropriate
+      4. Adding helpful formatting or structure
+
+      {% elif operation == "validate" %}
+      Validate the content for:
+      1. Accuracy and consistency
+      2. Completeness and clarity
+      3. Format and structure compliance
+      4. Quality and professionalism
+      5. Potential issues or improvements needed
+
+      {% elif operation == "convert" %}
+      Convert the content to the requested output format while:
+      1. Preserving all important information
+      2. Adapting structure appropriately
+      3. Ensuring format compliance
+      4. Maintaining readability and usability
+
+      {% else %}
+      Process the content according to the specific instructions provided,
+      focusing on delivering useful and actionable results.
+      {% endif %}
+
+      {% if output_format == "json" %}
+      Format your response as valid JSON with appropriate keys and structure.
+      {% elif output_format == "markdown" %}
+      Use proper markdown formatting with headers, lists, and emphasis.
+      {% elif output_format == "csv" %}
+      If applicable, format tabular data as CSV with headers.
+      {% elif output_format == "structured" %}
+      Use clear headings, bullet points, and logical organization.
+      {% else %}
+      Provide clean, well-formatted plain text output.
+      {% endif %}
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.3
+      max_tokens: 3000
+    output_key: "processed_result"
+
+  - id: "create_processing_report"
+    type: "text_process"
+    method: "replace"
+    input: |
+      # File Processing Report
+
+      ## Processing Details
+      - **File Extension:** {{ detect_file_type.file_extension }}
+      - **Operation:** {{ operation }}
+      - **Output Format:** {{ output_format }}
+      - **Processing Strategy:** {{ determine_processing_strategy.processing_strategy }}
+      - **Processed:** {{ now() }}
+
+      ## Specific Instructions
+      {{ specific_instructions }}
+
+      ## Processing Results
+
+      {{ execute_operation.processed_result }}
+
+      ## Summary
+      File processing completed successfully using the {{ operation }} operation.
+      {% if output_format != "plain_text" %}
+      Results formatted as {{ output_format }} for optimal usability.
+      {% endif %}
+
+      ---
+      *Processed using bakufu MCP interactive file processing*
+    replacements:
+      - find: ""
+        replace: ""
+    output_key: "final_report"
+
+output_format: "{{ create_processing_report.final_report }}"

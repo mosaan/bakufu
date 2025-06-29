@@ -1,0 +1,50 @@
+name: "Collection Map Example"
+description: "Demonstrates how to transform data using collection map operations"
+
+input_parameters:
+  - name: reviews
+    type: array
+    description: "List of product reviews"
+    default: 
+      - "This product is amazing! Great quality and fast shipping."
+      - "Not impressed. Poor build quality and overpriced."
+      - "Decent product for the price. Would recommend."
+
+steps:
+  - id: "analyze_reviews"
+    type: "collection"
+    description: "Analyze sentiment of each review"
+    operation: "map"
+    input: "{{ reviews }}"
+    concurrency:
+      max_parallel: 3
+      batch_size: 5
+    error_handling:
+      on_item_failure: "skip"
+    steps:
+      - id: "sentiment_analysis"
+        type: "ai_call"
+        description: "Analyze review sentiment (using JSON mode)"
+        prompt: |
+          Analyze the sentiment of this product review and provide a JSON response:
+          
+          Review: {{ item }}
+          
+          Respond with JSON in this format:
+          {
+            "sentiment": "positive|negative|neutral",
+            "confidence": 0.85,
+            "key_phrases": ["phrase1", "phrase2"]
+          }
+        ai_params:
+          response_format:
+            type: "json_object"
+
+output:
+  format: "json"
+  template: |
+    {
+      "original_reviews": {{ reviews | tojson }},
+      "sentiment_analysis": {{ steps.analyze_reviews | parse_json_array | tojson }},
+      "total_reviews": {{ reviews | length }}
+    }

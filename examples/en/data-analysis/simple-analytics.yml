@@ -1,0 +1,113 @@
+name: "Simple Data Analytics"
+description: "A workflow that analyzes CSV format data and provides basic statistics and insights"
+
+input_parameters:
+  - name: "csv_data"
+    type: "string"
+    required: true
+    description: "CSV data to analyze (including header row)"
+  - name: "analysis_focus"
+    type: "string"
+    required: false
+    description: "Analysis focus (e.g., sales trends, customer analysis, trend investigation, etc.)"
+    default: "General trend analysis"
+
+steps:
+  - id: "parse_csv_structure"
+    type: "ai_call"
+    description: "Analyze CSV structure"
+    prompt: |
+      Please analyze the structure of the following CSV data:
+
+      {{ input.csv_data }}
+
+      Please identify:
+      1. Number of columns and rows
+      2. Column names and estimated data types
+      3. Presence of missing values
+      4. Data quality (consistency, format, etc.)
+      5. Recommended columns for analysis
+
+      Return in structured JSON format.
+
+  - id: "extract_numerical_data"
+    type: "text_process"
+    description: "Extract numerical data"
+    method: "regex_extract"
+    input: "{{ input.csv_data }}"
+    pattern: '(\d+\.?\d*)'
+    flags: ["MULTILINE"]
+    output_format: "array"
+
+  - id: "calculate_basic_stats"
+    type: "ai_call"
+    description: "Calculate basic statistics"
+    prompt: |
+      Please calculate basic statistics from the following CSV data:
+
+      {{ input.csv_data }}
+
+      Numerical data: {{ steps.extract_numerical_data }}
+
+      Please calculate:
+      1. Mean, median, maximum, minimum for numerical columns
+      2. Data distribution status
+      3. Outlier detection
+      4. Basic trends
+
+      Please summarize the analysis results clearly.
+
+  - id: "generate_insights"
+    type: "ai_call"
+    description: "Generate insights"
+    prompt: |
+      Analysis Focus: {{ input.analysis_focus }}
+
+      CSV Data:
+      {{ input.csv_data }}
+
+      Structure Analysis:
+      {{ steps.parse_csv_structure }}
+
+      Basic Statistics:
+      {{ steps.calculate_basic_stats }}
+
+      Please generate insights from the following perspectives:
+      1. Important findings
+      2. Notable patterns and trends
+      3. Business implications
+      4. Improvement recommendations and next actions
+
+      Provide practical and actionable analysis results.
+
+  - id: "create_summary"
+    type: "text_process"
+    description: "Create summary report"
+    method: "replace"
+    input: |
+      # 📊 Data Analysis Report
+
+      ## 📋 Data Overview
+      {{ steps.parse_csv_structure }}
+
+      ## 📈 Basic Statistics
+      {{ steps.calculate_basic_stats }}
+
+      ## 💡 Key Insights
+      {{ steps.generate_insights }}
+
+      ## 🎯 Recommended Actions
+      From the perspective of {{ input.analysis_focus }}, the following actions are recommended:
+      
+      [Specific recommendations based on above insights]
+
+      ---
+      Analysis execution time: {{ now().strftime("%Y-%m-%d %H:%M") }}
+      Data rows: {{ input.csv_data.split('\n') | length }} rows
+    replacements:
+      - from: "[Specific recommendations based on above insights]"
+        to: "Please refer to the Key Insights section for details"
+
+output:
+  format: "text"
+  template: "{{ steps.create_summary }}"

@@ -1,0 +1,139 @@
+name: "メール文面作成"
+description: "目的に応じたビジネスメールの文面を自動生成するワークフロー"
+
+input_parameters:
+  - name: "purpose"
+    type: "string"
+    required: true
+    description: "メールの目的（例：問い合わせ、提案、謝罪、お礼など）"
+  - name: "recipient"
+    type: "string"
+    required: true
+    description: "送信先（例：取引先、上司、お客様など）"
+  - name: "tone"
+    type: "string"
+    required: false
+    description: "文面のトーン"
+    default: "丁寧で親しみやすい"
+  - name: "key_points"
+    type: "string"
+    required: false
+    description: "伝えたい要点"
+    default: ""
+
+steps:
+  - id: "analyze_context"
+    type: "ai_call"
+    description: "文脈を分析"
+    prompt: |
+      以下の情報からメール作成の文脈を分析してください：
+
+      - 目的: {{ input.purpose }}
+      - 受信者: {{ input.recipient }}
+      - トーン: {{ input.tone }}
+      - 要点: {{ input.key_points or "特に指定なし" }}
+
+      このメールに適した：
+      1. 件名案（3つ）
+      2. 敬語レベル（丁寧語・尊敬語・謙譲語の使い分け）
+      3. 構成案（挨拶・本文・締め）
+      4. 注意点
+
+      を提案してください。
+
+  - id: "create_subject"
+    type: "text_process"
+    description: "件名を選択"
+    method: "regex_extract"
+    input: "{{ steps.analyze_context }}"
+    pattern: '件名案[：:]\s*(.+?)(?=\n|$)'
+    output_format: "string"
+
+  - id: "write_greeting"
+    type: "ai_call"
+    description: "挨拶部分を作成"
+    prompt: |
+      {{ input.recipient }}向けのメールの挨拶部分を作成してください。
+
+      要件:
+      - {{ input.tone }}な文体
+      - {{ input.purpose }}の文脈に適した挨拶
+      - 日本のビジネスマナーに準拠
+
+      挨拶部分のみを返してください（本文は含めない）。
+
+  - id: "write_body"
+    type: "ai_call"
+    description: "本文を作成"
+    prompt: |
+      メールの本文を作成してください：
+
+      目的: {{ input.purpose }}
+      受信者: {{ input.recipient }}
+      トーン: {{ input.tone }}
+      {% if input.key_points %}
+      伝えたい要点: {{ input.key_points }}
+      {% endif %}
+
+      要件:
+      - 簡潔で分かりやすい文章
+      - 相手の立場を考慮した内容
+      - 具体的で行動につながる内容
+      - 適切な敬語の使用
+
+      本文部分のみを返してください。
+
+  - id: "write_closing"
+    type: "ai_call"
+    description: "締めの挨拶を作成"
+    prompt: |
+      {{ input.purpose }}の目的で{{ input.recipient }}に送るメールの締めの挨拶を作成してください。
+
+      文体: {{ input.tone }}
+
+      要件:
+      - 適切な結びの言葉
+      - 次のアクションが明確
+      - 相手への配慮を示す
+      - 日本のビジネス慣習に準拠
+
+      締めの挨拶のみを返してください。
+
+  - id: "assemble_email"
+    type: "text_process"
+    description: "メール全体を組み立て"
+    method: "replace"
+    input: |
+      件名: {{ steps.create_subject }}
+      
+      {{ steps.write_greeting }}
+      
+      {{ steps.write_body }}
+      
+      {{ steps.write_closing }}
+      
+      ［署名］
+    replacements:
+      - from: "［署名］"
+        to: |
+          ──────────────────
+          [お名前]
+          [会社名・部署名]
+          [連絡先]
+          ──────────────────
+
+output:
+  format: "text"
+  template: |
+    📧 生成されたメール文面
+    
+    {{ steps.assemble_email }}
+    
+    ---
+    📝 作成コンテキスト
+    - 目的: {{ input.purpose }}
+    - 受信者: {{ input.recipient }}
+    - トーン: {{ input.tone }}
+    
+    💡 文脈分析結果
+    {{ steps.analyze_context }}

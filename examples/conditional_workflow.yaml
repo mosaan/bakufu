@@ -1,0 +1,116 @@
+name: "条件分岐ワークフローのサンプル"
+description: "基本的なif-else条件分岐と複数条件分岐の使用例"
+version: "1.0"
+
+input_parameters:
+  - name: user_score
+    type: integer
+    required: true
+    description: "ユーザーのスコア（0-100）"
+  - name: user_name
+    type: string
+    required: true
+    description: "ユーザー名"
+  - name: enable_bonus
+    type: boolean
+    required: false
+    default: false
+    description: "ボーナス機能を有効にするかどうか"
+
+steps:
+  # ステップ1: 基本的な条件分岐（if-else構造）
+  - id: score_evaluation
+    type: conditional
+    description: "スコアに基づく基本的な評価"
+    condition: "{{ user_score >= 80 }}"
+    if_true:
+      - id: high_score_message
+        type: ai_call
+        prompt: |
+          {{ user_name }}さんのスコアは{{ user_score }}点でした。
+          優秀な成績について短い祝福メッセージを生成してください。
+    if_false:
+      - id: improvement_message
+        type: ai_call
+        prompt: |
+          {{ user_name }}さんのスコアは{{ user_score }}点でした。
+          改善のための短いアドバイスメッセージを生成してください。
+
+  # ステップ2: 複数条件分岐
+  - id: detailed_score_analysis
+    type: conditional
+    description: "スコアの詳細分析"
+    conditions:
+      - condition: "{{ user_score >= 95 }}"
+        name: excellent
+        steps:
+          - id: excellent_analysis
+            type: ai_call
+            prompt: |
+              {{ user_name }}さんは{{ user_score }}点で優秀です。
+              特別な表彰に値する理由を説明してください。
+      
+      - condition: "{{ user_score >= 80 }}"
+        name: good
+        steps:
+          - id: good_analysis
+            type: ai_call
+            prompt: |
+              {{ user_name }}さんは{{ user_score }}点で良好な成績です。
+              さらなる向上のためのアドバイスを提供してください。
+      
+      - condition: "{{ user_score >= 60 }}"
+        name: average
+        steps:
+          - id: average_analysis
+            type: ai_call
+            prompt: |
+              {{ user_name }}さんは{{ user_score }}点で平均的な成績です。
+              具体的な改善点と学習計画を提案してください。
+      
+      - condition: ""
+        name: needs_improvement
+        default: true
+        steps:
+          - id: improvement_plan
+            type: ai_call
+            prompt: |
+              {{ user_name }}さんは{{ user_score }}点で改善が必要です。
+              基礎から学び直すための具体的な計画を作成してください。
+
+  # ステップ3: 前のステップの結果を参照する条件分岐
+  - id: bonus_evaluation
+    type: conditional
+    description: "ボーナス機能の条件分岐"
+    condition: "{{ enable_bonus and steps.score_evaluation.condition_result }}"
+    if_true:
+      - id: bonus_message
+        type: ai_call
+        prompt: |
+          {{ user_name }}さんは高スコア（{{ user_score }}点）を獲得し、
+          ボーナス機能が有効になっています。
+          特別なボーナス特典について説明してください。
+
+  # ステップ4: 条件分岐の結果に基づく最終メッセージ
+  - id: final_report
+    type: ai_call
+    description: "最終レポートの生成"
+    prompt: |
+      {{ user_name }}さんの評価結果をまとめてください：
+      
+      基本評価: {{ steps.score_evaluation.executed_branch }}
+      詳細分析: {{ steps.detailed_score_analysis.executed_branch }}
+      ボーナス適用: {{ "はい" if steps.bonus_evaluation.executed_branch else "いいえ" }}
+      
+      基本メッセージ: {{ steps.score_evaluation.output }}
+      詳細分析: {{ steps.detailed_score_analysis.output }}
+      {% if steps.bonus_evaluation.output %}ボーナス特典: {{ steps.bonus_evaluation.output }}{% endif %}
+      
+      これらの情報を統合して、わかりやすい最終レポートを作成してください。
+
+output:
+  format: text
+  template: |
+    === {{ user_name }}さんの評価レポート ===
+    
+    {{ steps.final_report }}

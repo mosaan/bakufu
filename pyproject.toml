@@ -1,0 +1,165 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bakufu"
+dynamic = ["version"]
+description = "AI Workflow CLI Tool"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    { name = "mosaan" },
+]
+keywords = ["ai", "workflow", "cli", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "jinja2>=3.0.0",
+    "pyyaml>=6.0.0",
+    "litellm>=1.72.5",
+    "google-generativeai>=0.3.0",
+    "httpx>=0.25.0",
+    "jsonschema>=4.0.0",
+    "fastmcp>=2.8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "coverage>=7.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "types-PyYAML>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/bakufu-ai/bakufu"
+Documentation = "https://github.com/bakufu-ai/bakufu#readme"
+Repository = "https://github.com/bakufu-ai/bakufu.git"
+Issues = "https://github.com/bakufu-ai/bakufu/issues"
+
+[project.scripts]
+bakufu = "bakufu.cli:main"
+bakufu-mcp = "bakufu.mcp_server:main"
+
+[tool.hatch.version]
+path = "bakufu/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+# Explicitly include only public files
+include = [
+    "bakufu/",
+    "README.md",
+    "LICENSE", 
+    "CHANGELOG.md",
+    "examples/",
+    "docs/API.md",
+    "docs/USER_GUIDE.md",
+]
+
+# Exclude development and internal files
+exclude = [
+    "dev-docs/",
+    "CLAUDE.md",
+    "README_ja.md",
+    "tests/",
+    "htmlcov/",
+    "*.log",
+    "*.tmp",
+    ".env*",
+    "bakufu.yml",
+    "uv.lock",
+    "examples/*/run_examples.sh",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "PLR", "RUF"]
+ignore = ["E501"]  # Line too long (handled by formatter)
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004"]  # Allow magic values in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+]
+filterwarnings = [
+    # Ignore Pydantic deprecation warnings from external libraries like LiteLLM
+    "ignore:Support for class-based.*:DeprecationWarning:.*pydantic.*",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["bakufu"]
+omit = [
+    "tests/*",
+    "*/conftest.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+skip_covered = false
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[dependency-groups]
+dev = [
+    "build>=1.2.2.post1",
+    "types-jsonschema>=4.24.0.20250528",
+]

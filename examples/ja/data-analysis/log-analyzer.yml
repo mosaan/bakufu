@@ -1,0 +1,145 @@
+name: "ログ解析"
+description: "アプリケーションログを解析し、エラーパターンやパフォーマンス情報を抽出するワークフロー"
+
+input_parameters:
+  - name: "log_data"
+    type: "string"
+    required: true
+    description: "解析するログデータ"
+  - name: "time_range"
+    type: "string"
+    required: false
+    description: "解析対象の時間範囲"
+    default: "全期間"
+
+steps:
+  - id: "extract_log_entries"
+    type: "text_process"
+    description: "ログエントリを抽出"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}.*?)(?=\n\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}|$)'
+    flags: ["MULTILINE", "DOTALL"]
+    output_format: "array"
+
+  - id: "extract_error_logs"
+    type: "text_process"
+    description: "エラーログを抽出"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '.*(ERROR|FATAL|Exception|Error).*'
+    flags: ["IGNORECASE", "MULTILINE"]
+    output_format: "array"
+
+  - id: "extract_timestamps"
+    type: "text_process"
+    description: "タイムスタンプを抽出"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})'
+    flags: ["MULTILINE"]
+    output_format: "array"
+
+  - id: "analyze_log_patterns"
+    type: "ai_call"
+    description: "ログパターンを分析"
+    prompt: |
+      以下のログデータを分析してください：
+
+      解析期間: {{ input.time_range }}
+      
+      全ログエントリ数: {{ steps.extract_log_entries | length }}
+      エラー数: {{ steps.extract_error_logs | length }}
+      
+      エラーログサンプル:
+      {% for error in steps.extract_error_logs[:10] %}
+      {{ loop.index }}. {{ error }}
+      {% endfor %}
+
+      以下を分析してください：
+      1. エラーの種類と頻度
+      2. エラーが発生する時間帯のパターン
+      3. 最も重要なエラー（対応優先度）
+      4. システムの健全性評価
+
+  - id: "extract_performance_metrics"
+    type: "text_process"
+    description: "パフォーマンスメトリクスを抽出"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '.*(response_time|latency|duration|ms|seconds).*?(\d+\.?\d*)'
+    flags: ["IGNORECASE", "MULTILINE"]
+    output_format: "array"
+
+  - id: "performance_analysis"
+    type: "ai_call"
+    description: "パフォーマンス分析"
+    prompt: |
+      パフォーマンスデータを分析してください：
+
+      抽出されたパフォーマンスメトリクス:
+      {{ steps.extract_performance_metrics }}
+
+      全体のログデータ:
+      {{ steps.extract_log_entries | length }}件のエントリ
+
+      以下を分析してください：
+      1. 応答時間の傾向
+      2. パフォーマンスのボトルネック
+      3. 異常に遅い処理の特定
+      4. 改善提案
+
+  - id: "generate_recommendations"
+    type: "ai_call"
+    description: "改善提案を生成"
+    prompt: |
+      ログ分析結果に基づいて改善提案を生成してください：
+
+      ログパターン分析:
+      {{ steps.analyze_log_patterns }}
+
+      パフォーマンス分析:
+      {{ steps.performance_analysis }}
+
+      以下を含む改善提案を作成してください：
+      1. 緊急対応が必要な問題
+      2. 中長期的な改善項目
+      3. 監視強化すべき領域
+      4. 具体的な対応手順
+
+  - id: "create_report"
+    type: "text_process"
+    description: "解析レポートを作成"
+    method: "replace"
+    input: |
+      # 🔍 ログ解析レポート
+
+      ## 📊 解析概要
+      - **解析期間**: {{ input.time_range }}
+      - **総ログ数**: {{ steps.extract_log_entries | length }}件
+      - **エラー数**: {{ steps.extract_error_logs | length }}件
+      - **エラー率**: {{ ((steps.extract_error_logs | length) / (steps.extract_log_entries | length) * 100) | round(2) }}%
+
+      ## ⚠️ エラー分析
+      {{ steps.analyze_log_patterns }}
+
+      ## ⚡ パフォーマンス分析
+      {{ steps.performance_analysis }}
+
+      ## 💡 改善提案
+      {{ steps.generate_recommendations }}
+
+      ## 📋 検出されたエラー (上位10件)
+      {% for error in steps.extract_error_logs[:10] %}
+      {{ loop.index }}. {{ error[:100] }}...
+      {% endfor %}
+
+      ---
+      レポート生成時刻: {{ now().strftime("%Y-%m-%d %H:%M:%S") }}
+    replacements:
+      - pattern: '{{ \(\(steps\.extract_error_logs \| length\) / \(steps\.extract_log_entries \| length\) \* 100\) \| round\(2\) }}'
+        to: "計算結果"
+
+output:
+  format: "text"
+  template: "{{ steps.create_report }}"

@@ -1,0 +1,197 @@
+name: "インタラクティブファイル処理器"
+description: "様々な操作でファイルをインタラクティブに処理する、MCPツール使用に最適化されたワークフロー"
+
+input_parameters:
+  - name: "file_path"
+    type: "string"
+    required: true
+    description: "処理するファイルのパス（自動読み込みには@file:プレフィックスを使用）"
+  - name: "operation"
+    type: "string"
+    required: false
+    default: "analyze"
+    description: "処理操作: 'analyze'（解析）、'summarize'（要約）、'extract'（抽出）、'transform'（変換）、'validate'（検証）、または'convert'（変換）"
+  - name: "output_format"
+    type: "string"
+    required: false
+    default: "structured"
+    description: "出力形式: 'structured'（構造化）、'json'、'plain_text'（プレーンテキスト）、'markdown'、または'csv'"
+  - name: "specific_instructions"
+    type: "string"
+    required: false
+    default: "ベストプラクティスに従って処理"
+    description: "処理操作の具体的な指示や要件"
+
+steps:
+  - id: "detect_file_type"
+    type: "text_process"
+    method: "extract_between_marker"
+    input: "{{ file_path }}"
+    begin: "."
+    end: ""
+    output_key: "file_extension"
+    error_handling:
+      on_error: "continue"
+      fallback_value: "unknown"
+
+  - id: "load_file_content"
+    type: "conditional"
+    condition: "{{ file_path.startswith('@file:') }}"
+    if_true:
+      - id: "use_mcp_file_loading"
+        type: "text_process"
+        method: "replace"
+        input: "{{ file_path }}"
+        replacements:
+          - find: ""
+            replace: ""
+        output_key: "content"
+    if_false:
+      - id: "treat_as_direct_content"
+        type: "text_process"
+        method: "replace"
+        input: "{{ file_path }}"
+        replacements:
+          - find: ""
+            replace: ""
+        output_key: "content"
+
+  - id: "determine_processing_strategy"
+    type: "ai_call"
+    prompt: |
+      ファイル拡張子「{{ detect_file_type.file_extension }}」と操作「{{ operation }}」に基づいて、
+      最適な処理戦略を決定してください。
+
+      利用可能な操作:
+      - analyze: 内容構造と意味の包括的解析
+      - summarize: 主要ポイントの簡潔な要約作成
+      - extract: 特定の情報やデータポイントの抽出
+      - transform: 内容の変換または再構造化
+      - validate: 内容品質、形式、または適合性の確認
+      - convert: 形式または構造の変更
+
+      ファイル拡張子: {{ detect_file_type.file_extension }}
+      要求された操作: {{ operation }}
+      出力形式: {{ output_format }}
+
+      このファイルを最適に処理する方法の簡潔な戦略説明（1-2文）を提供してください。
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.2
+      max_tokens: 200
+    output_key: "processing_strategy"
+
+  - id: "execute_operation"
+    type: "ai_call"
+    prompt: |
+      以下のファイル処理操作を実行してください：
+
+      **ファイル内容:**
+      {{ load_file_content.content }}
+
+      **操作:** {{ operation }}
+      **処理戦略:** {{ determine_processing_strategy.processing_strategy }}
+      **具体的指示:** {{ specific_instructions }}
+      **出力形式:** {{ output_format }}
+
+      {% if operation == "analyze" %}
+      以下を含む包括的な解析を提供してください：
+      1. 内容構造と組織
+      2. 主要なトピックとテーマ
+      3. 品質評価
+      4. 重要な洞察や発見
+      5. 改善または次のステップの推奨事項
+
+      {% elif operation == "summarize" %}
+      以下を含む簡潔な要約を作成してください：
+      1. 主要ポイントと重要な情報
+      2. 必須の詳細と結論
+      3. 重要な文脈と背景
+      元の内容の長さに比例した要約にしてください。
+
+      {% elif operation == "extract" %}
+      以下などの関連情報を抽出してください：
+      1. 重要なデータポイントと統計
+      2. 重要な名前、日付、事実
+      3. 連絡先情報や参考文献
+      4. アクションアイテムや決定事項
+      5. その他の価値ある抽出可能な情報
+
+      {% elif operation == "transform" %}
+      以下により内容を変換してください：
+      1. より良い組織のための再構造化
+      2. 明確性と読みやすさの改善
+      3. 適切なトーンやスタイルの適応
+      4. 有用な書式や構造の追加
+
+      {% elif operation == "validate" %}
+      以下について内容を検証してください：
+      1. 正確性と一貫性
+      2. 完全性と明確性
+      3. 形式と構造の適合性
+      4. 品質とプロフェッショナル性
+      5. 潜在的な問題や必要な改善
+
+      {% elif operation == "convert" %}
+      以下を行いながら内容を要求された出力形式に変換してください：
+      1. すべての重要な情報を保持
+      2. 構造を適切に適応
+      3. 形式適合性を確保
+      4. 読みやすさと使いやすさを維持
+
+      {% else %}
+      提供された具体的指示に従って内容を処理し、
+      有用で実行可能な結果の提供に焦点を当ててください。
+      {% endif %}
+
+      {% if output_format == "json" %}
+      適切なキーと構造を持つ有効なJSONとして回答を整理してください。
+      {% elif output_format == "markdown" %}
+      ヘッダー、リスト、強調を含む適切なマークダウン書式を使用してください。
+      {% elif output_format == "csv" %}
+      該当する場合は、表形式データをヘッダー付きCSVとして整理してください。
+      {% elif output_format == "structured" %}
+      明確な見出し、箇条書き、論理的組織を使用してください。
+      {% else %}
+      きれいに整理されたプレーンテキスト出力を提供してください。
+      {% endif %}
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.3
+      max_tokens: 3000
+    output_key: "processed_result"
+
+  - id: "create_processing_report"
+    type: "text_process"
+    method: "replace"
+    input: |
+      # ファイル処理レポート
+
+      ## 処理詳細
+      - **ファイル拡張子:** {{ detect_file_type.file_extension }}
+      - **操作:** {{ operation }}
+      - **出力形式:** {{ output_format }}
+      - **処理戦略:** {{ determine_processing_strategy.processing_strategy }}
+      - **処理日時:** {{ now() }}
+
+      ## 具体的指示
+      {{ specific_instructions }}
+
+      ## 処理結果
+
+      {{ execute_operation.processed_result }}
+
+      ## 要約
+      {{ operation }}操作を使用してファイル処理が正常に完了しました。
+      {% if output_format != "plain_text" %}
+      最適な使いやすさのため{{ output_format }}として結果を整理しました。
+      {% endif %}
+
+      ---
+      *bakufu MCPインタラクティブファイル処理により処理済み*
+    replacements:
+      - find: ""
+        replace: ""
+    output_key: "final_report"
+
+output_format: "{{ create_processing_report.final_report }}"

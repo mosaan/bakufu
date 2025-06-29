@@ -1,0 +1,118 @@
+name: "Document Analyzer"
+description: "Analyzes documents with flexible input formats, designed for MCP integration"
+
+input_parameters:
+  - name: "document"
+    type: "string"
+    required: true
+    description: "Document content or file path (supports @file: prefix for loading files)"
+  - name: "analysis_type"
+    type: "string"
+    required: false
+    default: "comprehensive"
+    description: "Type of analysis: 'comprehensive', 'summary', 'sentiment', 'topics', or 'key_points'"
+  - name: "output_format"
+    type: "string"
+    required: false
+    default: "structured"
+    description: "Output format: 'structured', 'json', or 'plain_text'"
+
+steps:
+  - id: "load_document"
+    type: "conditional"
+    condition: "{{ document.startswith('@file:') }}"
+    if_true:
+      - id: "process_file_input"
+        type: "text_process"
+        method: "extract_between_marker" 
+        input: "{{ document }}"
+        begin: "@file:"
+        end: ""
+        output_key: "file_spec"
+      - id: "set_document_content"
+        type: "text_process"
+        method: "replace"
+        input: "File content will be processed by unified input processor"
+        replacements:
+          - find: "File content will be processed by unified input processor"
+            replace: "{{ document }}"
+        output_key: "processed_document"
+    if_false:
+      - id: "use_direct_content"
+        type: "text_process"
+        method: "replace"
+        input: "{{ document }}"
+        replacements:
+          - find: ""
+            replace: ""
+        output_key: "processed_document"
+
+  - id: "analyze_document"
+    type: "ai_call"
+    prompt: |
+      Please analyze the following document based on the requested analysis type: {{ analysis_type }}
+
+      Document Content:
+      {{ load_document.processed_document if load_document.processed_document else document }}
+
+      Analysis Instructions:
+      {% if analysis_type == "comprehensive" %}
+      Provide a comprehensive analysis including:
+      1. Document summary (2-3 sentences)
+      2. Main topics and themes
+      3. Key insights and findings
+      4. Tone and sentiment
+      5. Important quotes or data points
+      6. Recommendations or action items (if applicable)
+      {% elif analysis_type == "summary" %}
+      Provide a concise summary of the document highlighting the main points and conclusions.
+      {% elif analysis_type == "sentiment" %}
+      Analyze the sentiment and tone of the document, including:
+      - Overall sentiment (positive/negative/neutral)
+      - Emotional tone
+      - Confidence level
+      - Key phrases that indicate sentiment
+      {% elif analysis_type == "topics" %}
+      Identify and list the main topics, themes, and subjects covered in the document.
+      {% elif analysis_type == "key_points" %}
+      Extract and list the key points, facts, and important information from the document.
+      {% else %}
+      Provide a general analysis of the document content and structure.
+      {% endif %}
+
+      Output Format: {{ output_format }}
+      {% if output_format == "structured" %}
+      Please format your response with clear headings and bullet points for easy reading.
+      {% elif output_format == "json" %}
+      Please format your response as valid JSON with appropriate keys and structure.
+      {% else %}
+      Please provide your response in plain text format.
+      {% endif %}
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.3
+      max_tokens: 2000
+    output_key: "analysis_result"
+
+  - id: "format_final_output"
+    type: "text_process"
+    method: "replace"
+    input: |
+      # Document Analysis Report
+
+      **Analysis Type:** {{ analysis_type }}
+      **Output Format:** {{ output_format }}
+      **Document Length:** {{ (load_document.processed_document if load_document.processed_document else document) | length }} characters
+
+      ## Analysis Results
+
+      {{ analyze_document.analysis_result }}
+
+      ---
+      *Analysis completed using bakufu MCP integration*
+    replacements:
+      - find: ""
+        replace: ""
+    output_key: "formatted_report"
+
+output_format: "{{ format_final_output.formatted_report }}"

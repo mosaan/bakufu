@@ -1,0 +1,108 @@
+name: "レビュー感情分析"
+description: "商品レビューリストを並列で感情分析し、結果を集計"
+version: "1.0"
+
+input_parameters:
+  - name: "reviews"
+    type: "array"
+    required: true
+    description: "分析対象のレビューリスト"
+  - name: "product_name"
+    type: "string" 
+    required: false
+    default: "商品"
+    description: "商品名（レポート用）"
+
+steps:
+  # 1. 各レビューを並列で感情分析（コレクション操作使用）
+  - id: "analyze_reviews"
+    type: "collection"
+    operation: "map"
+    description: "各レビューの感情分析を並列実行"
+    input: "{{ reviews }}"
+    concurrency:
+      max_parallel: 4
+      batch_size: 15
+      delay_between_batches: 1.0
+    error_handling:
+      on_item_failure: "skip"
+      max_retries_per_item: 2
+    steps:
+      - id: "sentiment_analysis"
+        type: "ai_call"
+        description: "個別レビューの感情分析"
+        prompt: |
+          以下のレビューを分析してください：
+          
+          {{ item }}
+          
+          以下のJSON形式で回答してください：
+          {
+            "sentiment": "positive/negative/neutral",
+            "rating": 1-5,
+            "confidence": 0.0-1.0,
+            "key_points": ["ポイント1", "ポイント2"],
+            "summary": "一言要約"
+          }
+        # provider: "gemini/gemini-2.0-flash"
+        temperature: 0.1
+        max_tokens: 300
+
+  # 2. 分析結果をJSON配列として解析
+  - id: "parse_analysis_results"
+    type: "text_process"
+    method: "json_parse"
+    description: "分析結果をJSON形式で解析"
+    input: "[{{ steps.analyze_reviews.output | join(', ') }}]"
+
+  # 3. 集計レポート生成
+  - id: "generate_summary_report"
+    type: "ai_call"
+    description: "分析結果の集計レポートを生成"
+    # provider: "gemini/gemini-2.0-flash"
+    temperature: 0.3
+    max_tokens: 800
+    prompt: |
+      {{ input.product_name }}のレビュー分析結果をもとに、包括的な分析レポートを作成してください：
+      
+      分析データ：
+      {{ steps.parse_analysis_results.output | tojson }}
+      
+      以下の観点で分析してください：
+      1. 全体的な感情分布（positive/negative/neutral）
+      2. 平均評価と評価分布
+      3. 主要な評価ポイント（良い点・悪い点）
+      4. 改善提案
+      5. 総合的な評価サマリー
+      
+      読みやすくMarkdown形式で出力してください。
+
+output:
+  format: "text"
+  template: |
+    # {{ input.product_name }} レビュー感情分析レポート
+    
+    ## 📊 基本統計
+    - 分析レビュー数: {{ input.reviews | length }}件
+    - 処理成功数: {{ steps.analyze_reviews.output | select | list | length }}件
+    - 処理成功率: {{ ((steps.analyze_reviews.output | select | list | length) / (input.reviews | length) * 100) | round(1) }}%
+    
+    ---
+    
+    {{ steps.generate_summary_report.output }}
+    
+    ---
+    
+    ## 🔍 詳細分析データ
+    
+    {% for result in steps.parse_analysis_results.output %}
+    {% if result %}
+    ### レビュー {{ loop.index }}
+    - **感情**: {{ result.sentiment }}
+    - **評価**: {{ result.rating }}/5
+    - **信頼度**: {{ (result.confidence * 100) | round(1) }}%
+    - **要約**: {{ result.summary }}
+    - **キーポイント**: {{ result.key_points | join(', ') }}
+    
+    {% endif %}
+    {% endfor %}

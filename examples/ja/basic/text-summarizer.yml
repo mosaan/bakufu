@@ -1,0 +1,59 @@
+name: "テキスト要約"
+description: "長いテキストを分かりやすく要約するワークフロー"
+
+input_parameters:
+  - name: "text"
+    type: "string"
+    required: true
+    description: "要約したいテキスト"
+  - name: "max_length"
+    type: "integer"
+    required: false
+    description: "要約の最大文字数"
+    default: 200
+
+steps:
+  - id: "text_analysis"
+    type: "text_process"
+    description: "テキストの長さを確認"
+    method: "json_parse"
+    input: |
+      {
+        "original_length": {{ input.text | length }},
+        "target_length": {{ input.max_length }}
+      }
+
+  - id: "summarize"
+    type: "ai_call"
+    description: "テキストを要約"
+    prompt: |
+      以下のテキストを{{ input.max_length }}文字以内で要約してください。
+      重要なポイントを逃さず、簡潔で読みやすい文章にしてください。
+
+      原文：
+      {{ input.text }}
+
+      要約の条件：
+      - {{ input.max_length }}文字以内
+      - 重要なポイントを含める
+      - 読みやすい日本語
+      - 箇条書きではなく文章で
+
+  - id: "format_output"
+    type: "text_process"
+    description: "結果をフォーマット"
+    method: "replace"
+    input: |
+      📄 要約結果
+
+      【原文】{{ steps.text_analysis.original_length }}文字
+      【要約】{{ steps.summarize | length }}文字（目標: {{ steps.text_analysis.target_length }}文字）
+
+      {{ steps.summarize }}
+    replacements:
+      - from: "{{ steps.summarize | length }}"
+        to: "約{{ (steps.summarize | length) }}文字"
+
+output:
+  format: "text"
+  template: "{{ steps.format_output }}"

@@ -1,0 +1,50 @@
+name: "JSON Schema検証の例"
+description: "構造化AI出力のためのJSON Schema検証を実演"
+version: "1.0"
+
+input_parameters:
+  - name: text
+    type: string
+    required: true
+    description: "感情分析するテキスト"
+
+steps:
+  - id: sentiment_analysis
+    type: ai_call
+    prompt: |
+      以下のテキストの感情分析を行い、JSON形式で回答してください：
+      "{{ text }}"
+      
+      以下の構造で分析を提供してください：
+      - sentiment: positive、negative、またはneutral
+      - confidence: 0から1の間の数値
+      - summary: 分析の簡潔な説明
+    validation:
+      schema:
+        type: object
+        required: [sentiment, confidence, summary]
+        properties:
+          sentiment:
+            type: string
+            enum: [positive, negative, neutral]
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+          summary:
+            type: string
+            minLength: 10
+      max_retries: 3
+      force_json_output: true
+      retry_prompt: |
+        前回の回答が有効なJSON形式でないか、必要なスキーマと一致しませんでした。
+        要求された正確な構造で有効なJSONでの回答を確実にしてください。
+
+output:
+  format: json
+  template: |
+    {
+      "input_text": "{{ text }}",
+      "analysis": {{ steps.sentiment_analysis | tojson }},
+      "validation_passed": true
+    }

@@ -1,0 +1,131 @@
+name: "Blog Post Creator"
+description: "A workflow to generate SEO-conscious blog posts based on themes"
+
+input_parameters:
+  - name: "theme"
+    type: "string"
+    required: true
+    description: "Main theme of the blog post"
+  - name: "target_audience"
+    type: "string"
+    required: false
+    description: "Target reader demographic"
+    default: "General business professionals"
+  - name: "word_count"
+    type: "integer"
+    required: false
+    description: "Target word count"
+    default: 1500
+
+steps:
+  - id: "keyword_research"
+    type: "ai_call"
+    description: "Keyword research and outline creation"
+    prompt: |
+      Please provide suggestions for the blog post theme "{{ input.theme }}":
+
+      Target audience: {{ input.target_audience }}
+      Target word count: {{ input.word_count }} words
+
+      1. SEO keyword candidates (1 main, 3-5 sub-keywords)
+      2. Article structure plan (heading structure)
+      3. Reader challenges and solutions
+      4. Article differentiation points
+
+      Focus on practical and searchable content.
+
+  - id: "create_outline"
+    type: "text_process"
+    description: "Structure the outline"
+    method: "replace"
+    input: "{{ steps.keyword_research }}"
+    replacements:
+      - from: "1. "
+        to: "## 1. "
+      - from: "2. "
+        to: "## 2. "
+      - from: "3. "
+        to: "## 3. "
+      - from: "4. "
+        to: "## 4. "
+
+  - id: "write_introduction"
+    type: "ai_call"
+    description: "Create introduction section"
+    prompt: |
+      Write an introduction for the blog post "{{ input.theme }}" in approximately {{ (input.word_count * 0.15) | round | int }} words.
+
+      Requirements:
+      - Engaging opening that captures reader interest
+      - Clear statement of value readers will gain
+      - Content that resonates with {{ input.target_audience }}
+      - Naturally include SEO keyword "{{ input.theme }}"
+
+      Reference outline:
+      {{ steps.create_outline }}
+
+  - id: "write_main_content"
+    type: "ai_call"
+    description: "Create main content"
+    prompt: |
+      Write the main content for the blog post "{{ input.theme }}" in approximately {{ (input.word_count * 0.7) | round | int }} words.
+
+      Based on the structure, include:
+      - Concrete examples and case studies
+      - Practical advice
+      - Actionable content for readers
+      - Appropriate expertise level while remaining accessible
+
+      Outline:
+      {{ steps.create_outline }}
+
+      Introduction:
+      {{ steps.write_introduction }}
+
+      Return only the main content.
+
+  - id: "write_conclusion"
+    type: "ai_call"
+    description: "Create conclusion section"
+    prompt: |
+      Write a conclusion for the blog post "{{ input.theme }}" in approximately {{ (input.word_count * 0.15) | round | int }} words.
+
+      Requirements:
+      - Summary of key points
+      - Call-to-action for readers
+      - Suggestion for related article guidance
+      - Positive closing
+
+      Previous content:
+      {{ steps.write_introduction }}
+      {{ steps.write_main_content }}
+
+  - id: "add_metadata"
+    type: "text_process"
+    description: "Add metadata"
+    method: "replace"
+    input: |
+      ---
+      title: "{{ input.theme }}"
+      target_audience: "{{ input.target_audience }}"
+      estimated_reading_time: "{{ (input.word_count / 200) | round }} minutes"
+      word_count: "Approx. {{ input.word_count }} words"
+      keywords: "{{ steps.keyword_research }}"
+      ---
+      
+      # {{ input.theme }}
+      
+      {{ steps.write_introduction }}
+      
+      {{ steps.write_main_content }}
+      
+      ## Conclusion
+      
+      {{ steps.write_conclusion }}
+    replacements:
+      - from: "keywords: \"{{ steps.keyword_research }}\""
+        to: "keywords: \"Extracted from theme\""
+
+output:
+  format: "text"
+  template: "{{ steps.add_metadata }}"

@@ -1,0 +1,32 @@
+name: "Collection Filter Example"
+description: "Demonstrates how to filter data using collection operations"
+
+input_parameters:
+  - name: numbers
+    type: array
+    description: "List of numbers to filter"
+    default: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  - name: threshold
+    type: integer
+    description: "Minimum value for filtering"
+    default: 5
+
+steps:
+  - id: "filter_large_numbers"
+    type: "collection"
+    description: "Filter numbers greater than threshold"
+    operation: "filter"
+    input: "{{ numbers }}"
+    condition: "{{ item > threshold }}"
+    error_handling:
+      on_condition_error: "skip_item"
+
+output:
+  format: "json"
+  template: |
+    {
+      "original_numbers": {{ numbers | tojson }},
+      "threshold": {{ threshold }},
+      "filtered_numbers": {{ steps.filter_large_numbers | tojson }},
+      "count": {{ steps.filter_large_numbers | length }}
+    }

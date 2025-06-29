@@ -1,0 +1,38 @@
+# Package distribution manifest
+# This file provides additional control over what gets included in the package
+
+# Include essential files
+include README.md
+include LICENSE
+include CHANGELOG.md
+
+# Include package source code
+recursive-include bakufu *.py
+
+# Include user documentation
+include docs/API.md
+include docs/USER_GUIDE.md
+
+# Include examples
+recursive-include examples *.yml *.yaml *.md
+# Exclude shell scripts from examples
+exclude examples/*/run_examples.sh
+
+# Explicitly exclude development files
+exclude CLAUDE.md
+exclude README_ja.md  
+exclude bakufu.yml
+exclude uv.lock
+recursive-exclude dev-docs *
+recursive-exclude tests *
+recursive-exclude htmlcov *
+recursive-exclude .github *
+
+# Exclude temporary and log files
+global-exclude *.log
+global-exclude *.tmp
+global-exclude .env*
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .coverage
+global-exclude .pytest_cache

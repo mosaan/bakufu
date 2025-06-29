@@ -1,0 +1,87 @@
+name: "Markdown Document Processor"
+description: "A workflow that analyzes Markdown documents and generates section-wise summaries"
+
+input_parameters:
+  - name: "markdown_text"
+    type: "string"
+    required: true
+    description: "Markdown text to process"
+  - name: "summary_length"
+    type: "integer"
+    required: false
+    description: "Character length for each section summary"
+    default: 100
+
+steps:
+  - id: "split_sections"
+    type: "text_process"
+    description: "Split Markdown into sections"
+    method: "markdown_split"
+    input: "{{ input.markdown_text }}"
+
+  - id: "analyze_structure"
+    type: "ai_call"
+    description: "Analyze document structure"
+    prompt: |
+      Please analyze the structure of the following Markdown document.
+      Tell me the number of sections, total character count, and main topics.
+
+      Section list:
+      {% for section in steps.split_sections %}
+      - {{ section.title or "No title" }}: {{ section.content | length }} characters
+      {% endfor %}
+
+      Please return a concise analysis result.
+
+  - id: "summarize_sections"
+    type: "ai_call"
+    description: "Summarize each section"
+    prompt: |
+      Please summarize each of the following sections within {{ input.summary_length }} characters.
+      Include important points and summarize concisely.
+
+      {% for section in steps.split_sections %}
+      ## Section {{ loop.index }}: {{ section.title or "No title" }}
+      
+      Content:
+      {{ section.content }}
+      
+      {% endfor %}
+
+      Please return the summary of each section in the following format:
+      
+      【Section 1】Title
+      Summary content...
+      
+      【Section 2】Next title
+      Summary content...
+
+  - id: "create_toc"
+    type: "text_process"
+    description: "Create table of contents"
+    method: "replace"
+    input: |
+      # 📋 Document Table of Contents
+      
+      {% for section in steps.split_sections %}
+      {{ loop.index }}. {{ section.title or "No title" }} ({{ section.content | length }} characters)
+      {% endfor %}
+    replacements:
+      - from: "\n\n"
+        to: "\n"
+
+output:
+  format: "text"
+  template: |
+    📚 Markdown Document Processing Result
+    
+    {{ steps.create_toc }}
+    
+    ## 📊 Document Analysis
+    {{ steps.analyze_structure }}
+    
+    ## 📝 Section-wise Summary
+    {{ steps.summarize_sections }}
+    
+    ---
+    Processing complete: {{ steps.split_sections | length }} sections processed

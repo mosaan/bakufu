@@ -1,0 +1,50 @@
+name: "JSON Schema Validation Example"
+description: "Demonstrates JSON schema validation for structured AI output"
+version: "1.0"
+
+input_parameters:
+  - name: text
+    type: string
+    required: true
+    description: "Text to analyze for sentiment"
+
+steps:
+  - id: sentiment_analysis
+    type: ai_call
+    prompt: |
+      Analyze the sentiment of the following text and respond in JSON format:
+      "{{ text }}"
+      
+      Please provide your analysis in the following structure:
+      - sentiment: positive, negative, or neutral
+      - confidence: a number between 0 and 1
+      - summary: a brief explanation of your analysis
+    validation:
+      schema:
+        type: object
+        required: [sentiment, confidence, summary]
+        properties:
+          sentiment:
+            type: string
+            enum: [positive, negative, neutral]
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+          summary:
+            type: string
+            minLength: 10
+      max_retries: 3
+      force_json_output: true
+      retry_prompt: |
+        The previous response was not in valid JSON format or didn't match the required schema.
+        Please ensure your response is valid JSON with the exact structure requested.
+
+output:
+  format: json
+  template: |
+    {
+      "input_text": "{{ text }}",
+      "analysis": {{ steps.sentiment_analysis | tojson }},
+      "validation_passed": true
+    }

@@ -1,0 +1,50 @@
+name: "コレクションマップ例"
+description: "コレクションマップ操作を使用したデータ変換のデモンストレーション"
+
+input_parameters:
+  - name: reviews
+    type: array
+    description: "商品レビューのリスト"
+    default: 
+      - "この商品は素晴らしい！品質が良く配送も早い。"
+      - "あまり感心しない。品質が悪く高すぎる。"
+      - "価格に見合った普通の商品。おすすめできる。"
+
+steps:
+  - id: "analyze_reviews"
+    type: "collection"
+    description: "各レビューの感情を分析"
+    operation: "map"
+    input: "{{ reviews }}"
+    concurrency:
+      max_parallel: 3
+      batch_size: 5
+    error_handling:
+      on_item_failure: "skip"
+    steps:
+      - id: "sentiment_analysis"
+        type: "ai_call"
+        description: "レビューの感情分析（JSON mode使用）"
+        prompt: |
+          この商品レビューの感情を分析してJSON形式で回答してください：
+          
+          レビュー: {{ item }}
+          
+          以下の形式でJSONで回答してください：
+          {
+            "sentiment": "positive|negative|neutral",
+            "confidence": 0.85,
+            "key_phrases": ["フレーズ1", "フレーズ2"]
+          }
+        ai_params:
+          response_format:
+            type: "json_object"
+
+output:
+  format: "json"
+  template: |
+    {
+      "original_reviews": {{ reviews | tojson }},
+      "sentiment_analysis": {{ steps.analyze_reviews | parse_json_array | tojson }},
+      "total_reviews": {{ reviews | length }}
+    }

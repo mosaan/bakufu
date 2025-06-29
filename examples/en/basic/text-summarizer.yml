@@ -1,0 +1,59 @@
+name: "Text Summarizer"
+description: "A workflow to summarize long text in an understandable way"
+
+input_parameters:
+  - name: "text"
+    type: "string"
+    required: true
+    description: "Text to be summarized"
+  - name: "max_length"
+    type: "integer"
+    required: false
+    description: "Maximum character count for summary"
+    default: 200
+
+steps:
+  - id: "text_analysis"
+    type: "text_process"
+    description: "Check text length"
+    method: "json_parse"
+    input: |
+      {
+        "original_length": {{ input.text | length }},
+        "target_length": {{ input.max_length }}
+      }
+
+  - id: "summarize"
+    type: "ai_call"
+    description: "Summarize the text"
+    prompt: |
+      Please summarize the following text within {{ input.max_length }} characters.
+      Ensure important points are not missed and create a concise, readable summary.
+
+      Original text:
+      {{ input.text }}
+
+      Summary requirements:
+      - Within {{ input.max_length }} characters
+      - Include important points
+      - Clear and readable English
+      - Write in paragraph form, not bullet points
+
+  - id: "format_output"
+    type: "text_process"
+    description: "Format the result"
+    method: "replace"
+    input: |
+      📄 Summary Result
+
+      【Original】{{ steps.text_analysis.original_length }} characters
+      【Summary】{{ steps.summarize | length }} characters (Target: {{ steps.text_analysis.target_length }} characters)
+
+      {{ steps.summarize }}
+    replacements:
+      - from: "{{ steps.summarize | length }}"
+        to: "approx. {{ (steps.summarize | length) }} characters"
+
+output:
+  format: "text"
+  template: "{{ steps.format_output }}"

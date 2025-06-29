@@ -1,0 +1,154 @@
+name: "マルチソースコンテンツ作成器"
+description: "MCPの統合入力処理を使用して複数のソースからデータを組み合わせてコンテンツを作成"
+
+input_parameters:
+  - name: "data_source"
+    type: "string"
+    required: true
+    description: "プライマリデータソース（JSON/YAMLファイルには@file:、直接JSONには@value:を使用）"
+  - name: "requirements"
+    type: "string"
+    required: false
+    default: "魅力的で有益なコンテンツを作成"
+    description: "コンテンツ要件またはガイドライン（テキストファイルには@file:を使用可能）"
+  - name: "output_format"
+    type: "string"
+    required: false
+    default: "@value:{\"type\": \"article\", \"style\": \"professional\", \"length\": \"medium\"}"
+    description: "出力形式仕様（type、style、lengthなどを含むJSONオブジェクト）"
+  - name: "target_audience"
+    type: "string"
+    required: false
+    default: "一般読者"
+    description: "コンテンツのターゲット読者"
+
+steps:
+  - id: "process_data_source"
+    type: "ai_call"
+    prompt: |
+      以下のデータソースから重要な情報を抽出して要約してください：
+
+      データソース内容:
+      {{ data_source }}
+
+      指示:
+      1. 主要なデータポイント、事実、洞察を特定する
+      2. 情報を論理的に整理する
+      3. パターン、トレンド、重要な発見を記録する
+      4. この情報をコンテンツ作成の基盤として準備する
+
+      コンテンツ作成に使用される構造化された要約を提供してください。
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.2
+      max_tokens: 1500
+    output_key: "processed_data"
+
+  - id: "parse_output_format"
+    type: "text_process"
+    method: "parse_as_json"
+    input: "{{ output_format }}"
+    output_key: "format_config"
+    error_handling:
+      on_error: "continue"
+      fallback_value: '{"type": "article", "style": "professional", "length": "medium"}'
+
+  - id: "create_content"
+    type: "ai_call"
+    prompt: |
+      以下の仕様に基づいて{{ parse_output_format.format_config.type | default('コンテンツ') }}を作成してください：
+
+      **データ基盤:**
+      {{ process_data_source.processed_data }}
+
+      **要件:**
+      {{ requirements }}
+
+      **コンテンツ仕様:**
+      - タイプ: {{ parse_output_format.format_config.type | default('記事') }}
+      - スタイル: {{ parse_output_format.format_config.style | default('プロフェッショナル') }}
+      - 長さ: {{ parse_output_format.format_config.length | default('中程度') }}
+      - ターゲット読者: {{ target_audience }}
+
+      **追加形式ガイドライン:**
+      {% if parse_output_format.format_config.type == "report" %}
+      エグゼクティブサマリー、主要な発見、推奨事項を含む正式なレポートとして構成してください。
+      {% elif parse_output_format.format_config.type == "article" %}
+      明確な導入、本文セクション、結論を持つ魅力的な記事として作成してください。
+      {% elif parse_output_format.format_config.type == "summary" %}
+      最重要ポイントを強調した簡潔な要約を提供してください。
+      {% elif parse_output_format.format_config.type == "presentation" %}
+      プレゼンテーションスライドに適した明確な見出しと箇条書きで構成してください。
+      {% else %}
+      指定されたタイプに適した構造化されたコンテンツを作成してください。
+      {% endif %}
+
+      {% if parse_output_format.format_config.length == "short" %}
+      コンテンツを簡潔に保ってください（300-500文字）。
+      {% elif parse_output_format.format_config.length == "medium" %}
+      適度な詳細を提供してください（500-1000文字）。
+      {% elif parse_output_format.format_config.length == "long" %}
+      包括的なコンテンツを作成してください（1000文字以上）。
+      {% endif %}
+
+      {{ target_audience }}に適した魅力的で有益で適切なコンテンツにしてください。
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.4
+      max_tokens: 3000
+    output_key: "generated_content"
+
+  - id: "enhance_and_finalize"
+    type: "ai_call"
+    prompt: |
+      以下のコンテンツをレビューして改善してください：
+
+      {{ create_content.generated_content }}
+
+      改善タスク:
+      1. 明確性と読みやすさを確保
+      2. 適切な場合は魅力的な見出し/小見出しを追加
+      3. 論理的な流れと構造を確認
+      4. 不足している文脈や説明を追加
+      5. {{ parse_output_format.format_config.style | default('プロフェッショナル') }}スタイルに言語を磨く
+
+      ターゲット読者: {{ target_audience }}
+      コンテンツタイプ: {{ parse_output_format.format_config.type | default('記事') }}
+
+      最終的な洗練されたバージョンのコンテンツを提供してください。
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.3
+      max_tokens: 3000
+    output_key: "final_content"
+
+  - id: "create_metadata"
+    type: "text_process"
+    method: "replace"
+    input: |
+      # マルチソースコンテンツ作成レポート
+
+      ## コンテンツメタデータ
+      - **タイプ:** {{ parse_output_format.format_config.type | default('記事') }}
+      - **スタイル:** {{ parse_output_format.format_config.style | default('プロフェッショナル') }}
+      - **長さ:** {{ parse_output_format.format_config.length | default('中程度') }}
+      - **ターゲット読者:** {{ target_audience }}
+      - **作成日:** {{ now() }}
+
+      ## 使用データソース
+      - プライマリデータソースが処理され統合されました
+      - 要件とガイドラインが適用されました
+      - 形式仕様に従いました
+
+      ## 生成されたコンテンツ
+
+      {{ enhance_and_finalize.final_content }}
+
+      ---
+      *bakufu MCPマルチソース統合により作成*
+    replacements:
+      - find: ""
+        replace: ""
+    output_key: "complete_output"
+
+output_format: "{{ create_metadata.complete_output }}"

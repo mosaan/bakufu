@@ -1,0 +1,87 @@
+name: "Markdown 文書処理"
+description: "Markdownドキュメントを分析し、セクションごとに要約を生成するワークフロー"
+
+input_parameters:
+  - name: "markdown_text"
+    type: "string"
+    required: true
+    description: "処理するMarkdownテキスト"
+  - name: "summary_length"
+    type: "integer"
+    required: false
+    description: "各セクションの要約文字数"
+    default: 100
+
+steps:
+  - id: "split_sections"
+    type: "text_process"
+    description: "Markdownをセクションに分割"
+    method: "markdown_split"
+    input: "{{ input.markdown_text }}"
+
+  - id: "analyze_structure"
+    type: "ai_call"
+    description: "文書構造を分析"
+    prompt: |
+      以下のMarkdown文書の構造を分析してください。
+      セクション数、全体の文字数、主要なトピックを教えてください。
+
+      セクション一覧:
+      {% for section in steps.split_sections %}
+      - {{ section.title or "タイトルなし" }}: {{ section.content | length }}文字
+      {% endfor %}
+
+      簡潔な分析結果を返してください。
+
+  - id: "summarize_sections"
+    type: "ai_call"
+    description: "各セクションを要約"
+    prompt: |
+      以下の各セクションを{{ input.summary_length }}文字以内で要約してください。
+      重要なポイントを含めて、簡潔にまとめてください。
+
+      {% for section in steps.split_sections %}
+      ## セクション{{ loop.index }}: {{ section.title or "タイトルなし" }}
+      
+      内容:
+      {{ section.content }}
+      
+      {% endfor %}
+
+      各セクションの要約を以下の形式で返してください：
+      
+      【セクション1】タイトル
+      要約内容...
+      
+      【セクション2】次のタイトル
+      要約内容...
+
+  - id: "create_toc"
+    type: "text_process"
+    description: "目次を作成"
+    method: "replace"
+    input: |
+      # 📋 文書目次
+      
+      {% for section in steps.split_sections %}
+      {{ loop.index }}. {{ section.title or "タイトルなし" }} ({{ section.content | length }}文字)
+      {% endfor %}
+    replacements:
+      - from: "\n\n"
+        to: "\n"
+
+output:
+  format: "text"
+  template: |
+    📚 Markdown文書処理結果
+    
+    {{ steps.create_toc }}
+    
+    ## 📊 文書分析
+    {{ steps.analyze_structure }}
+    
+    ## 📝 セクション別要約
+    {{ steps.summarize_sections }}
+    
+    ---
+    処理完了: {{ steps.split_sections | length }}セクションを処理しました

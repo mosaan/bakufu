@@ -1,0 +1,28 @@
+name: "Hello World - First Workflow"
+description: "A simple example to learn basic usage of bakufu"
+
+input_parameters:
+  - name: "name"
+    type: "string"
+    description: "Name of the person to greet"
+    default: "World"
+
+steps:
+  - id: "greeting"
+    type: "ai_call"
+    description: "Generate a personalized greeting"
+    prompt: |
+      Please provide a friendly and warm greeting to {{input.name}}.
+      Use a polite but not overly formal tone in English.
+      Execution time: {{ now().strftime('%Y-%m-%d %H:%M') }}
+
+output:
+  format: "text"
+  template: |
+    🎉 Generated Greeting:
+    
+    {{steps.greeting}}
+    
+    ---
+    This workflow has been executed successfully!
+    Execution time: {{ now().strftime('%Y-%m-%d %H:%M') }}

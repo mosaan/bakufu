@@ -1,0 +1,19 @@
+### Bakufu Configuration File ###
+
+# `default_provider` is the AI provider used for processing tasks.
+# `bakufu` uses LiteLLM for AI interactions and
+# `default_provider` must be one of the supported providers' names in LiteLLM.
+# For more information on supported providers, visit:
+# https://docs.litellm.ai/docs/providers
+#default_provider: gemini/gemini-2.0-flash
+default_provider: ollama/gemma3:1b
+timeout_per_step: 60
+max_parallel_ai_calls: 3
+max_parallel_text_processing: 5
+log_level: INFO
+cache_enabled: true
+provider_settings:
+  gemini:
+    api_key: ${GOOGLE_API_KEY}
+  ollama:
+    base_url: http://localhost:11434

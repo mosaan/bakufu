@@ -1,0 +1,149 @@
+name: "基本テキスト処理メソッドデモ"
+description: "新しいv1.1.0基本テキスト処理メソッドのデモンストレーション"
+version: "1.0.0"
+
+input_parameters:
+  - name: "csv_data"
+    type: "string"
+    required: true
+    default: "りんご,バナナ,オレンジ,ぶどう,キウイ"
+    description: "処理するカンマ区切りデータ"
+    
+  - name: "xml_content"
+    type: "string"
+    required: false
+    default: "<商品><商品情報 id='1'><名前>ノートパソコン</名前><価格>99000</価格></商品情報><商品情報 id='2'><名前>マウス</名前><価格>2500</価格></商品情報></商品>"
+    description: "商品データを含むXMLコンテンツ"
+    
+  - name: "json_data"
+    type: "string"
+    required: false
+    default: '{"ユーザー": [{"名前": "田中", "年齢": 30}, {"名前": "佐藤", "年齢": 25}, {"名前": "鈴木", "年齢": 35}]}'
+    description: "解析・検証するJSONデータ"
+
+steps:
+  # ステップ1: CSVデータの分割
+  - id: "split_csv"
+    type: "text_process"
+    method: "split"
+    input: "{{ input.csv_data }}"
+    separator: ","
+    max_splits: 3
+    
+  # ステップ2: 分割データから特定項目を選択
+  - id: "select_first_item"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv }}"
+    index: 0
+    
+  - id: "select_last_two"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv }}"
+    slice: "-2:"
+    
+  - id: "select_long_names"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv }}"
+    condition: "len(item) > 3"
+    
+  # ステップ3: XMLマーカー間のコンテンツ抽出
+  - id: "extract_product_names"
+    type: "text_process"
+    method: "extract_between_marker"
+    input: "{{ input.xml_content }}"
+    begin: "<名前>"
+    end: "</名前>"
+    extract_all: true
+    
+  - id: "extract_first_price"
+    type: "text_process"
+    method: "extract_between_marker"
+    input: "{{ input.xml_content }}"
+    begin: "<価格>"
+    end: "</価格>"
+    extract_all: false
+    
+  # ステップ4: JSONデータの解析と検証
+  - id: "parse_json_data"
+    type: "text_process"
+    method: "parse_as_json"
+    input: "{{ input.json_data }}"
+    format_output: true
+    
+  # ステップ5: 解析されたJSONからユーザー名を抽出
+  - id: "extract_user_names"
+    type: "ai_call"
+    prompt: |
+      以下の解析されたJSONデータからユーザー名のみを抽出してください：
+      
+      {{ steps.parse_json_data.data }}
+      
+      カンマ区切りのリストとして返してください。
+      
+  # ステップ6: 抽出された名前を分割
+  - id: "split_user_names"
+    type: "text_process"
+    method: "split"
+    input: "{{ steps.extract_user_names }}"
+    separator: ","
+    
+  # ステップ7: サマリーレポートの生成
+  - id: "generate_summary"
+    type: "ai_call"
+    prompt: |
+      実行されたテキスト処理操作のサマリーレポートを作成してください：
+      
+      ## 元データ
+      - CSVデータ: {{ input.csv_data }}
+      - XMLコンテンツ: {{ input.xml_content }}
+      - JSONデータ: {{ input.json_data }}
+      
+      ## 処理結果
+      - CSVを{{ steps.split_csv | length }}個の項目に分割
+      - 最初の項目: {{ steps.select_first_item }}
+      - 最後の2項目: {{ steps.select_last_two | join(", ") }}
+      - 3文字より長い項目: {{ steps.select_long_names | join(", ") }}
+      - 見つかった商品名: {{ steps.extract_product_names | join(", ") }}
+      - 最初の価格: {{ steps.extract_first_price }}円
+      - JSON検証状況: {{ steps.parse_json_data.validation_result.valid }}
+      - 抽出されたユーザー名: {{ steps.extract_user_names }}
+      
+      データと処理効率に関する洞察を提供してください。
+
+output:
+  format: "text"
+  template: |
+    # 基本テキスト処理メソッドデモ結果
+    
+    ## サマリー
+    {{ steps.generate_summary }}
+    
+    ## 詳細結果
+    
+    ### CSV処理
+    - **元データ**: `{{ input.csv_data }}`
+    - **分割結果**: {{ steps.split_csv | tojson }}
+    - **最初の項目**: {{ steps.select_first_item }}
+    - **最後の2項目**: {{ steps.select_last_two | tojson }}
+    - **長い名前**: {{ steps.select_long_names | tojson }}
+    
+    ### XML処理  
+    - **商品名**: {{ steps.extract_product_names | tojson }}
+    - **最初の価格**: {{ steps.extract_first_price }}円
+    
+    ### JSON処理
+    - **検証状況**: ✅ {{ steps.parse_json_data.validation_result.valid }}
+    - **スキーマ有効性**: ✅ {{ steps.parse_json_data.validation_result.schema_valid }}
+    - **データ型**: {{ steps.parse_json_data.metadata.data_type }}
+    - **データサイズ**: {{ steps.parse_json_data.metadata.data_size }} 文字
+    
+    ### パフォーマンスメタデータ
+    - **処理時刻**: {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+    - **使用メソッド**: split, extract_between_marker, select_item, parse_as_json
+    - **総ステップ数**: {{ steps | length }}
+    
+    ---
+    *bakufu v1.1.0 テキスト処理メソッドで生成*

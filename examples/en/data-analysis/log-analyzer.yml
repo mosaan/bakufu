@@ -1,0 +1,145 @@
+name: "Log Analyzer"
+description: "A workflow that analyzes application logs and extracts error patterns and performance information"
+
+input_parameters:
+  - name: "log_data"
+    type: "string"
+    required: true
+    description: "Log data to analyze"
+  - name: "time_range"
+    type: "string"
+    required: false
+    description: "Time range for analysis"
+    default: "All periods"
+
+steps:
+  - id: "extract_log_entries"
+    type: "text_process"
+    description: "Extract log entries"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}.*?)(?=\n\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}|$)'
+    flags: ["MULTILINE", "DOTALL"]
+    output_format: "array"
+
+  - id: "extract_error_logs"
+    type: "text_process"
+    description: "Extract error logs"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '.*(ERROR|FATAL|Exception|Error).*'
+    flags: ["IGNORECASE", "MULTILINE"]
+    output_format: "array"
+
+  - id: "extract_timestamps"
+    type: "text_process"
+    description: "Extract timestamps"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})'
+    flags: ["MULTILINE"]
+    output_format: "array"
+
+  - id: "analyze_log_patterns"
+    type: "ai_call"
+    description: "Analyze log patterns"
+    prompt: |
+      Please analyze the following log data:
+
+      Analysis period: {{ input.time_range }}
+      
+      Total log entries: {{ steps.extract_log_entries | length }}
+      Error count: {{ steps.extract_error_logs | length }}
+      
+      Error log samples:
+      {% for error in steps.extract_error_logs[:10] %}
+      {{ loop.index }}. {{ error }}
+      {% endfor %}
+
+      Please analyze:
+      1. Types and frequency of errors
+      2. Time patterns when errors occur
+      3. Most critical errors (response priority)
+      4. System health assessment
+
+  - id: "extract_performance_metrics"
+    type: "text_process"
+    description: "Extract performance metrics"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: '.*(response_time|latency|duration|ms|seconds).*?(\d+\.?\d*)'
+    flags: ["IGNORECASE", "MULTILINE"]
+    output_format: "array"
+
+  - id: "performance_analysis"
+    type: "ai_call"
+    description: "Performance analysis"
+    prompt: |
+      Please analyze the performance data:
+
+      Extracted performance metrics:
+      {{ steps.extract_performance_metrics }}
+
+      Overall log data:
+      {{ steps.extract_log_entries | length }} entries
+
+      Please analyze:
+      1. Response time trends
+      2. Performance bottlenecks
+      3. Identification of abnormally slow processes
+      4. Improvement recommendations
+
+  - id: "generate_recommendations"
+    type: "ai_call"
+    description: "Generate improvement recommendations"
+    prompt: |
+      Please generate improvement recommendations based on log analysis results:
+
+      Log pattern analysis:
+      {{ steps.analyze_log_patterns }}
+
+      Performance analysis:
+      {{ steps.performance_analysis }}
+
+      Please create improvement recommendations including:
+      1. Issues requiring urgent response
+      2. Medium to long-term improvement items
+      3. Areas requiring enhanced monitoring
+      4. Specific response procedures
+
+  - id: "create_report"
+    type: "text_process"
+    description: "Create analysis report"
+    method: "replace"
+    input: |
+      # 🔍 Log Analysis Report
+
+      ## 📊 Analysis Overview
+      - **Analysis Period**: {{ input.time_range }}
+      - **Total Logs**: {{ steps.extract_log_entries | length }} entries
+      - **Error Count**: {{ steps.extract_error_logs | length }} entries
+      - **Error Rate**: {{ ((steps.extract_error_logs | length) / (steps.extract_log_entries | length) * 100) | round(2) }}%
+
+      ## ⚠️ Error Analysis
+      {{ steps.analyze_log_patterns }}
+
+      ## ⚡ Performance Analysis
+      {{ steps.performance_analysis }}
+
+      ## 💡 Improvement Recommendations
+      {{ steps.generate_recommendations }}
+
+      ## 📋 Detected Errors (Top 10)
+      {% for error in steps.extract_error_logs[:10] %}
+      {{ loop.index }}. {{ error[:100] }}...
+      {% endfor %}
+
+      ---
+      Report generation time: {{ now().strftime("%Y-%m-%d %H:%M:%S") }}
+    replacements:
+      - pattern: '{{ \(\(steps\.extract_error_logs \| length\) / \(steps\.extract_log_entries \| length\) \* 100\) \| round\(2\) }}'
+        to: "Calculated result"
+
+output:
+  format: "text"
+  template: "{{ steps.create_report }}"

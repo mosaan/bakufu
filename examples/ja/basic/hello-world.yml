@@ -1,0 +1,28 @@
+name: "Hello World - 最初のワークフロー"
+description: "bakufuの基本的な使用方法を学ぶためのシンプルな例"
+
+input_parameters:
+  - name: "name"
+    type: "string"
+    description: "挨拶する相手の名前"
+    default: "世界"
+
+steps:
+  - id: "greeting"
+    type: "ai_call"
+    description: "パーソナライズされた挨拶を生成"
+    prompt: |
+      {{input.name}}に対して、親しみやすく温かい挨拶をしてください。
+      日本語で、礼儀正しく、でも堅すぎない文体でお願いします。
+      実行日時: {{ now().strftime('%Y-%m-%d %H:%M') }}
+
+output:
+  format: "text"
+  template: |
+    🎉 生成された挨拶：
+    
+    {{steps.greeting}}
+    
+    ---
+    このワークフローは正常に実行されました！
+    実行日時: {{ now().strftime('%Y-%m-%d %H:%M') }}

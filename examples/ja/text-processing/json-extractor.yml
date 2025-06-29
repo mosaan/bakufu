@@ -1,0 +1,70 @@
+name: "JSON データ抽出・整形"
+description: "テキストからJSONデータを抽出し、指定したフィールドを取り出すワークフロー"
+
+input_parameters:
+  - name: "text"
+    type: "string"
+    required: true
+    description: "JSON データを含むテキスト"
+  - name: "field_path"
+    type: "string"
+    required: false
+    description: "抽出したいフィールドのパス (例: data.items.0.name)"
+    default: ""
+
+steps:
+  - id: "extract_json"
+    type: "text_process"
+    description: "テキストからJSONを抽出"
+    method: "regex_extract"
+    input: "{{ input.text }}"
+    pattern: '\{[^}]*\}'
+    flags: ["MULTILINE", "DOTALL"]
+    output_format: "string"
+
+  - id: "parse_json"
+    type: "text_process"
+    description: "JSONをパース"
+    method: "json_parse"
+    input: "{{ steps.extract_json }}"
+
+  - id: "extract_field"
+    type: "ai_call"
+    description: "指定されたフィールドを抽出"
+    prompt: |
+      以下のJSONデータから、パス "{{ input.field_path }}" に該当するデータを抽出してください。
+      
+      JSONデータ:
+      {{ steps.parse_json | tojson(indent=2) }}
+      
+      {% if input.field_path %}
+      抽出パス: {{ input.field_path }}
+      
+      指定されたパスのデータのみを返してください。パスが存在しない場合は "データが見つかりません" と返してください。
+      {% else %}
+      フィールドパスが指定されていないため、全体の構造を分かりやすく表示してください。
+      {% endif %}
+
+  - id: "format_result"
+    type: "text_process"
+    description: "結果を整形"
+    method: "replace"
+    input: |
+      🔍 JSON データ抽出結果
+      
+      【元データ】
+      {{ steps.extract_json }}
+      
+      {% if input.field_path %}
+      【抽出パス】{{ input.field_path }}
+      {% endif %}
+      
+      【抽出結果】
+      {{ steps.extract_field }}
+    replacements:
+      - from: "{{ steps.extract_json }}"
+        to: "{{ steps.extract_json[:100] }}{% if steps.extract_json | length > 100 %}...{% endif %}"
+
+output:
+  format: "text"
+  template: "{{ steps.format_result }}"

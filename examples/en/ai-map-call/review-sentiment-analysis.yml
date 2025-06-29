@@ -1,0 +1,108 @@
+name: "Review Sentiment Analysis"
+description: "Parallel sentiment analysis of product review list and result aggregation"
+version: "1.0"
+
+input_parameters:
+  - name: "reviews"
+    type: "array"
+    required: true
+    description: "List of reviews to be analyzed"
+  - name: "product_name"
+    type: "string" 
+    required: false
+    default: "Product"
+    description: "Product name (for reporting)"
+
+steps:
+  # 1. Parallel sentiment analysis of each review using collection operations
+  - id: "analyze_reviews"
+    type: "collection"
+    operation: "map"
+    description: "Parallel execution of sentiment analysis for each review"
+    input: "{{ reviews }}"
+    concurrency:
+      max_parallel: 4
+      batch_size: 15
+      delay_between_batches: 1.0
+    error_handling:
+      on_item_failure: "skip"
+      max_retries_per_item: 2
+    steps:
+      - id: "sentiment_analysis"
+        type: "ai_call"
+        description: "Analyze sentiment of individual review"
+        prompt: |
+          Please analyze the following review:
+          
+          {{ item }}
+          
+          Please respond in the following JSON format:
+          {
+            "sentiment": "positive/negative/neutral",
+            "rating": 1-5,
+            "confidence": 0.0-1.0,
+            "key_points": ["point1", "point2"],
+            "summary": "brief summary"
+          }
+        # provider: "gemini/gemini-2.0-flash"
+        temperature: 0.1
+        max_tokens: 300
+
+  # 2. Parse analysis results as JSON array
+  - id: "parse_analysis_results"
+    type: "text_process"
+    method: "json_parse"
+    description: "Parse analysis results in JSON format"
+    input: "[{{ steps.analyze_reviews | join(', ') }}]"
+
+  # 3. Generate aggregation report
+  - id: "generate_summary_report"
+    type: "ai_call"
+    description: "Generate aggregation report of analysis results"
+    # provider: "gemini/gemini-2.0-flash"
+    temperature: 0.3
+    max_tokens: 800
+    prompt: |
+      Please create a comprehensive analysis report based on the review analysis results for {{ input.product_name }}:
+      
+      Analysis data:
+      {{ steps.parse_analysis_results | tojson }}
+      
+      Please analyze from the following perspectives:
+      1. Overall sentiment distribution (positive/negative/neutral)
+      2. Average rating and rating distribution
+      3. Key evaluation points (good points and bad points)
+      4. Improvement suggestions
+      5. Comprehensive evaluation summary
+      
+      Please output in readable Markdown format.
+
+output:
+  format: "text"
+  template: |
+    # {{ input.product_name }} Review Sentiment Analysis Report
+    
+    ## 📊 Basic Statistics
+    - Analyzed reviews: {{ input.reviews | length }} reviews
+    - Successfully processed: {{ steps.analyze_reviews | select | list | length }} reviews
+    - Processing success rate: {{ ((steps.analyze_reviews | select | list | length) / (input.reviews | length) * 100) | round(1) }}%
+    
+    ---
+    
+    {{ steps.generate_summary_report }}
+    
+    ---
+    
+    ## 🔍 Detailed Analysis Data
+    
+    {% for result in steps.parse_analysis_results %}
+    {% if result %}
+    ### Review {{ loop.index }}
+    - **Sentiment**: {{ result.sentiment }}
+    - **Rating**: {{ result.rating }}/5
+    - **Confidence**: {{ (result.confidence * 100) | round(1) }}%
+    - **Summary**: {{ result.summary }}
+    - **Key Points**: {{ result.key_points | join(', ') }}
+    
+    {% endif %}
+    {% endfor %}

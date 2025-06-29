@@ -1,0 +1,92 @@
+name: "長文AI並列要約"
+description: "長文を段落に分割し、各段落を並列でAI要約した後、全体要約を生成"
+version: "1.0"
+
+input_parameters:
+  - name: "long_text"
+    type: "string"
+    required: true
+    description: "要約したい長文テキスト"
+  - name: "target_summary_length"
+    type: "integer"
+    required: false
+    default: 200
+    description: "目標要約文字数"
+
+steps:
+  # 1. 長文を段落に分割
+  - id: "split_paragraphs"
+    type: "text_process"
+    method: "regex_extract"
+    description: "テキストを段落単位で分割"
+    input: "{{ input.long_text }}"
+    pattern: "[^\\n]+(?:\\n(?![\\n])[^\\n]+)*"
+    output_format: "array"
+
+  # 2. 各段落を並列で要約（コレクション操作使用）
+  - id: "summarize_paragraphs"
+    type: "collection"
+    operation: "map"
+    description: "各段落を並列でAI要約"
+    input: "{{ steps.split_paragraphs }}"
+    concurrency:
+      max_parallel: 3
+      batch_size: 5
+      delay_between_batches: 0.5
+    error_handling:
+      on_item_failure: "skip"
+      max_retries_per_item: 2
+    steps:
+      - id: "paragraph_summary"
+        type: "ai_call"
+        description: "個別段落の要約"
+        prompt: |
+          以下の段落を簡潔に要約してください：
+          
+          {{ item }}
+          
+          要件：
+          - 1-2文で要約
+          - 重要なポイントを逃さない
+          - 読みやすい日本語で
+        # provider: "gemini/gemini-2.0-flash"
+        temperature: 0.3
+        max_tokens: 200
+
+  # 3. 段落要約を統合して全体要約を作成
+  - id: "create_final_summary"
+    type: "ai_call"
+    description: "段落要約を統合して最終要約を作成"
+    # provider: "gemini/gemini-2.0-flash"
+    temperature: 0.5
+    max_tokens: 500
+    prompt: |
+      以下の段落要約を統合して、{{ input.target_summary_length }}文字程度の全体要約を作成してください：
+      
+      段落要約一覧：
+      {% for summary in steps.summarize_paragraphs %}
+      {% if summary %}
+      - {{ summary }}
+      {% endif %}
+      {% endfor %}
+      
+      要件：
+      - 論理的な構成で統合
+      - 重要度に応じて内容を取捨選択
+      - {{ input.target_summary_length }}文字以内
+      - 読みやすく自然な文章
+
+output:
+  format: "text"
+  template: |
+    # {{ input.long_text | truncate(50) }}... の要約
+    
+    ## 📝 全体要約
+    {{ steps.create_final_summary }}
+    
+    ## 📊 処理統計
+    - 元文字数: {{ input.long_text | length }}文字
+    - 段落数: {{ steps.split_paragraphs | length }}個
+    - 要約段落数: {{ steps.summarize_paragraphs | select | list | length }}個
+    - 要約文字数: {{ steps.create_final_summary | length }}文字
+    - 圧縮率: {{ ((steps.create_final_summary | length) / (input.long_text | length) * 100) | round(1) }}%

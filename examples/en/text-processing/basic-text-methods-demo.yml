@@ -1,0 +1,149 @@
+name: "Basic Text Processing Methods Demo"
+description: "Demonstrates the new v1.1.0 basic text processing methods"
+version: "1.0.0"
+
+input_parameters:
+  - name: "csv_data"
+    type: "string"
+    required: true
+    default: "apple,banana,orange,grape,kiwi"
+    description: "Comma-separated data to process"
+    
+  - name: "xml_content"
+    type: "string"
+    required: false
+    default: "<products><item id='1'><name>Laptop</name><price>999</price></item><item id='2'><name>Mouse</name><price>25</price></item></products>"
+    description: "XML content with product data"
+    
+  - name: "json_data"
+    type: "string"
+    required: false
+    default: '{"users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}, {"name": "Charlie", "age": 35}]}'
+    description: "JSON data to parse and validate"
+
+steps:
+  # Step 1: Split CSV data
+  - id: "split_csv"
+    type: "text_process"
+    method: "split"
+    input: "{{ input.csv_data }}"
+    separator: ","
+    max_splits: 3
+    
+  # Step 2: Select specific items from the split data
+  - id: "select_first_item"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv }}"
+    index: 0
+    
+  - id: "select_last_two"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv }}"
+    slice: "-2:"
+    
+  - id: "select_long_names"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv }}"
+    condition: "len(item) > 5"
+    
+  # Step 3: Extract content between XML markers
+  - id: "extract_product_names"
+    type: "text_process"
+    method: "extract_between_marker"
+    input: "{{ input.xml_content }}"
+    begin: "<name>"
+    end: "</name>"
+    extract_all: true
+    
+  - id: "extract_first_price"
+    type: "text_process"
+    method: "extract_between_marker"
+    input: "{{ input.xml_content }}"
+    begin: "<price>"
+    end: "</price>"
+    extract_all: false
+    
+  # Step 4: Parse and validate JSON data
+  - id: "parse_json_data"
+    type: "text_process"
+    method: "parse_as_json"
+    input: "{{ input.json_data }}"
+    format_output: true
+    
+  # Step 5: Extract user names from parsed JSON
+  - id: "extract_user_names"
+    type: "ai_call"
+    prompt: |
+      From the following parsed JSON data, extract just the user names:
+      
+      {{ steps.parse_json_data.data }}
+      
+      Return them as a comma-separated list.
+      
+  # Step 6: Split the extracted names and select adults only
+  - id: "split_user_names"
+    type: "text_process"
+    method: "split"
+    input: "{{ steps.extract_user_names }}"
+    separator: ","
+    
+  # Step 7: Generate summary report
+  - id: "generate_summary"
+    type: "ai_call"
+    prompt: |
+      Create a summary report of the text processing operations performed:
+      
+      ## Original Data
+      - CSV Data: {{ input.csv_data }}
+      - XML Content: {{ input.xml_content }}
+      - JSON Data: {{ input.json_data }}
+      
+      ## Processing Results
+      - Split CSV into {{ steps.split_csv | length }} items
+      - First item: {{ steps.select_first_item }}
+      - Last two items: {{ steps.select_last_two | join(", ") }}
+      - Items longer than 5 chars: {{ steps.select_long_names | join(", ") }}
+      - Product names found: {{ steps.extract_product_names | join(", ") }}
+      - First price found: ${{ steps.extract_first_price }}
+      - JSON validation status: {{ steps.parse_json_data.validation_result.valid }}
+      - User names extracted: {{ steps.extract_user_names }}
+      
+      Provide insights about the data and processing efficiency.
+
+output:
+  format: "text"
+  template: |
+    # Basic Text Processing Methods Demo Results
+    
+    ## Summary
+    {{ steps.generate_summary }}
+    
+    ## Detailed Results
+    
+    ### CSV Processing
+    - **Original**: `{{ input.csv_data }}`
+    - **Split Result**: {{ steps.split_csv | tojson }}
+    - **First Item**: {{ steps.select_first_item }}
+    - **Last Two Items**: {{ steps.select_last_two | tojson }}
+    - **Long Names**: {{ steps.select_long_names | tojson }}
+    
+    ### XML Processing  
+    - **Product Names**: {{ steps.extract_product_names | tojson }}
+    - **First Price**: ${{ steps.extract_first_price }}
+    
+    ### JSON Processing
+    - **Validation Status**: ✅ {{ steps.parse_json_data.validation_result.valid }}
+    - **Schema Valid**: ✅ {{ steps.parse_json_data.validation_result.schema_valid }}
+    - **Data Type**: {{ steps.parse_json_data.metadata.data_type }}
+    - **Data Size**: {{ steps.parse_json_data.metadata.data_size }} characters
+    
+    ### Performance Metadata
+    - **Processing Time**: {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+    - **Methods Used**: split, extract_between_marker, select_item, parse_as_json
+    - **Total Steps**: {{ steps | length }}
+    
+    ---
+    *Generated with bakufu v1.1.0 text processing methods*

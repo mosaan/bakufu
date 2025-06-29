@@ -1,0 +1,76 @@
+name: "出力回復の例"
+description: "まとまりのないAI回答からの出力回復を実演"
+version: "1.0"
+
+input_parameters:
+  - name: data_request
+    type: string
+    required: true
+    description: "構造化データ抽出のリクエスト"
+
+steps:
+  - id: extract_data
+    type: ai_call
+    prompt: |
+      {{ data_request }}
+      
+      JSON形式で回答を提供してください。明確にするために、JSON回答を
+      マークダウンコードブロックで囲んでください。
+    validation:
+      schema:
+        type: object
+        required: [data, metadata]
+        properties:
+          data:
+            type: array
+            items:
+              type: object
+          metadata:
+            type: object
+            properties:
+              count: { type: integer, minimum: 0 }
+              source: { type: string }
+      max_retries: 2
+      allow_partial_success: true
+      extract_json_pattern: '```json\s*(\{.*?\})\s*```'
+      retry_prompt: |
+        前回の回答を解析できませんでした。次のように有効なJSONを
+        マークダウンコードブロックで囲んで提供してください：
+        
+        ```json
+        {
+          "data": [...],
+          "metadata": {...}
+        }
+        ```
+
+  - id: format_output
+    type: ai_call
+    prompt: |
+      以下の抽出されたデータをユーザーフレンドリーな要約にフォーマットしてください：
+      {{ steps.extract_data | tojson }}
+      
+      以下を含むJSON回答を提供してください：
+      - summary: 簡潔なテキスト要約
+      - formatted_data: より読みやすい形式のデータ
+    validation:
+      schema:
+        type: object
+        required: [summary, formatted_data]
+        properties:
+          summary:
+            type: string
+            minLength: 20
+          formatted_data:
+            type: string
+      max_retries: 1
+      force_json_output: true
+
+output:
+  format: json
+  template: |
+    {
+      "request": "{{ data_request }}",
+      "extracted_data": {{ steps.extract_data | tojson }},
+      "formatted_output": {{ steps.format_output | tojson }}
+    }

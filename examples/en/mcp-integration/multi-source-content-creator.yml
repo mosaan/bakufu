@@ -1,0 +1,154 @@
+name: "Multi-Source Content Creator"
+description: "Creates content by combining data from multiple sources using MCP's unified input processing"
+
+input_parameters:
+  - name: "data_source"
+    type: "string"
+    required: true
+    description: "Primary data source (supports @file: for JSON/YAML files or @value: for direct JSON)"
+  - name: "requirements"
+    type: "string"
+    required: false
+    default: "Create engaging and informative content"
+    description: "Content requirements or guidelines (supports @file: for text files)"
+  - name: "output_format"
+    type: "string"
+    required: false
+    default: "@value:{\"type\": \"article\", \"style\": \"professional\", \"length\": \"medium\"}"
+    description: "Output format specification (JSON object with type, style, length, etc.)"
+  - name: "target_audience"
+    type: "string"
+    required: false
+    default: "general audience"
+    description: "Target audience for the content"
+
+steps:
+  - id: "process_data_source"
+    type: "ai_call"
+    prompt: |
+      Please extract and summarize the key information from the following data source:
+
+      Data Source Content:
+      {{ data_source }}
+
+      Instructions:
+      1. Identify the main data points, facts, and insights
+      2. Organize the information logically
+      3. Note any patterns, trends, or significant findings
+      4. Prepare this information for content creation
+
+      Provide a structured summary that will be used as the foundation for content creation.
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.2
+      max_tokens: 1500
+    output_key: "processed_data"
+
+  - id: "parse_output_format"
+    type: "text_process"
+    method: "parse_as_json"
+    input: "{{ output_format }}"
+    output_key: "format_config"
+    error_handling:
+      on_error: "continue"
+      fallback_value: '{"type": "article", "style": "professional", "length": "medium"}'
+
+  - id: "create_content"
+    type: "ai_call"
+    prompt: |
+      Create {{ parse_output_format.format_config.type | default('content') }} based on the following specifications:
+
+      **Data Foundation:**
+      {{ process_data_source.processed_data }}
+
+      **Requirements:**
+      {{ requirements }}
+
+      **Content Specifications:**
+      - Type: {{ parse_output_format.format_config.type | default('article') }}
+      - Style: {{ parse_output_format.format_config.style | default('professional') }}
+      - Length: {{ parse_output_format.format_config.length | default('medium') }}
+      - Target Audience: {{ target_audience }}
+
+      **Additional Format Guidelines:**
+      {% if parse_output_format.format_config.type == "report" %}
+      Structure as a formal report with executive summary, main findings, and recommendations.
+      {% elif parse_output_format.format_config.type == "article" %}
+      Write as an engaging article with clear introduction, body sections, and conclusion.
+      {% elif parse_output_format.format_config.type == "summary" %}
+      Provide a concise summary highlighting the most important points.
+      {% elif parse_output_format.format_config.type == "presentation" %}
+      Structure with clear headings and bullet points suitable for presentation slides.
+      {% else %}
+      Create well-structured content appropriate for the specified type.
+      {% endif %}
+
+      {% if parse_output_format.format_config.length == "short" %}
+      Keep the content concise (300-500 words).
+      {% elif parse_output_format.format_config.length == "medium" %}
+      Provide moderate detail (500-1000 words).
+      {% elif parse_output_format.format_config.length == "long" %}
+      Create comprehensive content (1000+ words).
+      {% endif %}
+
+      Ensure the content is engaging, informative, and appropriate for {{ target_audience }}.
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.4
+      max_tokens: 3000
+    output_key: "generated_content"
+
+  - id: "enhance_and_finalize"
+    type: "ai_call"
+    prompt: |
+      Please review and enhance the following content:
+
+      {{ create_content.generated_content }}
+
+      Enhancement Tasks:
+      1. Ensure clarity and readability
+      2. Add compelling headlines/subheadings if appropriate
+      3. Verify logical flow and structure
+      4. Add any missing context or explanations
+      5. Polish the language for {{ parse_output_format.format_config.style | default('professional') }} style
+
+      Target Audience: {{ target_audience }}
+      Content Type: {{ parse_output_format.format_config.type | default('article') }}
+
+      Provide the final, polished version of the content.
+    provider_config:
+      model: "gemini/gemini-2.0-flash"
+      temperature: 0.3
+      max_tokens: 3000
+    output_key: "final_content"
+
+  - id: "create_metadata"
+    type: "text_process"
+    method: "replace"
+    input: |
+      # Multi-Source Content Creation Report
+
+      ## Content Metadata
+      - **Type:** {{ parse_output_format.format_config.type | default('article') }}
+      - **Style:** {{ parse_output_format.format_config.style | default('professional') }}
+      - **Length:** {{ parse_output_format.format_config.length | default('medium') }}
+      - **Target Audience:** {{ target_audience }}
+      - **Created:** {{ now() }}
+
+      ## Data Sources Used
+      - Primary data source processed and integrated
+      - Requirements and guidelines applied
+      - Format specifications followed
+
+      ## Generated Content
+
+      {{ enhance_and_finalize.final_content }}
+
+      ---
+      *Content created using bakufu MCP multi-source integration*
+    replacements:
+      - find: ""
+        replace: ""
+    output_key: "complete_output"
+
+output_format: "{{ create_metadata.complete_output }}"

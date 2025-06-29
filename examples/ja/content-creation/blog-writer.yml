@@ -1,0 +1,131 @@
+name: "ブログ記事作成"
+description: "テーマに基づいてSEOを意識したブログ記事を生成するワークフロー"
+
+input_parameters:
+  - name: "theme"
+    type: "string"
+    required: true
+    description: "ブログ記事のメインテーマ"
+  - name: "target_audience"
+    type: "string"
+    required: false
+    description: "ターゲット読者層"
+    default: "一般的なビジネスパーソン"
+  - name: "word_count"
+    type: "integer"
+    required: false
+    description: "目標文字数"
+    default: 1500
+
+steps:
+  - id: "keyword_research"
+    type: "ai_call"
+    description: "キーワード調査とアウトライン作成"
+    prompt: |
+      ブログ記事のテーマ「{{ input.theme }}」について、以下を提案してください：
+
+      対象読者: {{ input.target_audience }}
+      目標文字数: {{ input.word_count }}文字
+
+      1. SEOキーワード候補（メイン1つ、サブ3-5個）
+      2. 記事の構成案（見出し構造）
+      3. 読者の課題と解決策
+      4. 記事の差別化ポイント
+
+      実用的で検索されやすい内容を意識してください。
+
+  - id: "create_outline"
+    type: "text_process"
+    description: "アウトラインを構造化"
+    method: "replace"
+    input: "{{ steps.keyword_research }}"
+    replacements:
+      - from: "1. "
+        to: "## 1. "
+      - from: "2. "
+        to: "## 2. "
+      - from: "3. "
+        to: "## 3. "
+      - from: "4. "
+        to: "## 4. "
+
+  - id: "write_introduction"
+    type: "ai_call"
+    description: "導入部分を作成"
+    prompt: |
+      ブログ記事「{{ input.theme }}」の導入部分を{{ (input.word_count * 0.15) | round | int }}文字程度で書いてください。
+
+      要件:
+      - 読者の関心を引く書き出し
+      - 記事で得られる価値を明示
+      - {{ input.target_audience }}に響く内容
+      - SEOキーワード「{{ input.theme }}」を自然に含める
+
+      参考アウトライン:
+      {{ steps.create_outline }}
+
+  - id: "write_main_content"
+    type: "ai_call"
+    description: "本文を作成"
+    prompt: |
+      ブログ記事「{{ input.theme }}」の本文を{{ (input.word_count * 0.7) | round | int }}文字程度で書いてください。
+
+      構成に基づいて、以下を含めてください:
+      - 具体例や事例
+      - 実用的なアドバイス
+      - 読者が行動に移せる内容
+      - 適度な専門性と分かりやすさ
+
+      アウトライン:
+      {{ steps.create_outline }}
+
+      導入部:
+      {{ steps.write_introduction }}
+
+      本文のみを返してください。
+
+  - id: "write_conclusion"
+    type: "ai_call"
+    description: "まとめ部分を作成"
+    prompt: |
+      ブログ記事「{{ input.theme }}」のまとめ部分を{{ (input.word_count * 0.15) | round | int }}文字程度で書いてください。
+
+      要件:
+      - 記事の要点をまとめ
+      - 読者への行動促進（CTA）
+      - 関連記事への誘導示唆
+      - ポジティブな締めくくり
+
+      これまでの内容:
+      {{ steps.write_introduction }}
+      {{ steps.write_main_content }}
+
+  - id: "add_metadata"
+    type: "text_process"
+    description: "メタデータを追加"
+    method: "replace"
+    input: |
+      ---
+      title: "{{ input.theme }}"
+      target_audience: "{{ input.target_audience }}"
+      estimated_reading_time: "{{ (input.word_count / 400) | round }}分"
+      word_count: "約{{ input.word_count }}文字"
+      keywords: "{{ steps.keyword_research }}"
+      ---
+      
+      # {{ input.theme }}
+      
+      {{ steps.write_introduction }}
+      
+      {{ steps.write_main_content }}
+      
+      ## まとめ
+      
+      {{ steps.write_conclusion }}
+    replacements:
+      - from: "keywords: \"{{ steps.keyword_research }}\""
+        to: "keywords: \"テーマから抽出\""
+
+output:
+  format: "text"
+  template: "{{ steps.add_metadata }}"

@@ -1,0 +1,137 @@
+name: "Email Template Creator"
+description: "A workflow to automatically generate business email templates based on purpose"
+
+input_parameters:
+  - name: "purpose"
+    type: "string"
+    required: true
+    description: "Email purpose (e.g., inquiry, proposal, apology, thanks, etc.)"
+  - name: "recipient"
+    type: "string"
+    required: true
+    description: "Recipient (e.g., business partner, supervisor, customer, etc.)"
+  - name: "tone"
+    type: "string"
+    required: false
+    description: "Email tone"
+    default: "Professional and friendly"
+  - name: "key_points"
+    type: "string"
+    required: false
+    description: "Key points to convey"
+    default: ""
+
+steps:
+  - id: "analyze_context"
+    type: "ai_call"
+    description: "Analyze context"
+    prompt: |
+      Please analyze the context for email creation based on the following information:
+
+      - Purpose: {{ input.purpose }}
+      - Recipient: {{ input.recipient }}
+      - Tone: {{ input.tone }}
+      - Key points: {{ input.key_points or "No specific points" }}
+
+      Please suggest appropriate:
+      1. Subject line options (3 options)
+      2. Formality level (formal/professional/casual)
+      3. Structure plan (greeting, body, closing)
+      4. Important considerations
+
+  - id: "create_subject"
+    type: "text_process"
+    description: "Select subject line"
+    method: "regex_extract"
+    input: "{{ steps.analyze_context }}"
+    pattern: 'Subject.*?[：:]\\s*(.+?)(?=\\n|$)'
+    output_format: "string"
+
+  - id: "write_greeting"
+    type: "ai_call"
+    description: "Create greeting section"
+    prompt: |
+      Create a greeting section for an email to {{ input.recipient }}.
+
+      Requirements:
+      - {{ input.tone }} writing style
+      - Appropriate greeting for {{ input.purpose }} context
+      - Professional business etiquette
+
+      Return only the greeting section (do not include body).
+
+  - id: "write_body"
+    type: "ai_call"
+    description: "Create email body"
+    prompt: |
+      Create the email body:
+
+      Purpose: {{ input.purpose }}
+      Recipient: {{ input.recipient }}
+      Tone: {{ input.tone }}
+      {% if input.key_points %}
+      Key points to convey: {{ input.key_points }}
+      {% endif %}
+
+      Requirements:
+      - Concise and clear writing
+      - Content that considers recipient's perspective
+      - Specific and actionable content
+      - Appropriate professional language
+
+      Return only the body section.
+
+  - id: "write_closing"
+    type: "ai_call"
+    description: "Create closing"
+    prompt: |
+      Create a closing for an email with purpose {{ input.purpose }} to {{ input.recipient }}.
+
+      Style: {{ input.tone }}
+
+      Requirements:
+      - Appropriate closing phrases
+      - Clear next actions
+      - Show consideration for recipient
+      - Follow professional conventions
+
+      Return only the closing section.
+
+  - id: "assemble_email"
+    type: "text_process"
+    description: "Assemble complete email"
+    method: "replace"
+    input: |
+      Subject: {{ steps.create_subject }}
+      
+      {{ steps.write_greeting }}
+      
+      {{ steps.write_body }}
+      
+      {{ steps.write_closing }}
+      
+      [Signature]
+    replacements:
+      - from: "[Signature]"
+        to: |
+          ──────────────────
+          [Your Name]
+          [Company/Department]
+          [Contact Information]
+          ──────────────────
+
+output:
+  format: "text"
+  template: |
+    📧 Generated Email Template
+    
+    {{ steps.assemble_email }}
+    
+    ---
+    📝 Creation Context
+    - Purpose: {{ input.purpose }}
+    - Recipient: {{ input.recipient }}
+    - Tone: {{ input.tone }}
+    
+    💡 Context Analysis Results
+    {{ steps.analyze_context }}

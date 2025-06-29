@@ -1,0 +1,76 @@
+name: "Output Recovery Example"
+description: "Demonstrates output recovery from messy AI responses"
+version: "1.0"
+
+input_parameters:
+  - name: data_request
+    type: string
+    required: true
+    description: "Request for structured data extraction"
+
+steps:
+  - id: extract_data
+    type: ai_call
+    prompt: |
+      {{ data_request }}
+      
+      Please provide your response in JSON format. Make sure to wrap your JSON response 
+      in markdown code blocks for clarity.
+    validation:
+      schema:
+        type: object
+        required: [data, metadata]
+        properties:
+          data:
+            type: array
+            items:
+              type: object
+          metadata:
+            type: object
+            properties:
+              count: { type: integer, minimum: 0 }
+              source: { type: string }
+      max_retries: 2
+      allow_partial_success: true
+      extract_json_pattern: '```json\s*(\{.*?\})\s*```'
+      retry_prompt: |
+        Your previous response could not be parsed. Please ensure you provide valid JSON 
+        wrapped in markdown code blocks like this:
+        
+        ```json
+        {
+          "data": [...],
+          "metadata": {...}
+        }
+        ```
+
+  - id: format_output
+    type: ai_call
+    prompt: |
+      Format the following extracted data into a user-friendly summary:
+      {{ steps.extract_data | tojson }}
+      
+      Provide a JSON response with:
+      - summary: brief text summary
+      - formatted_data: the data in a more readable format
+    validation:
+      schema:
+        type: object
+        required: [summary, formatted_data]
+        properties:
+          summary:
+            type: string
+            minLength: 20
+          formatted_data:
+            type: string
+      max_retries: 1
+      force_json_output: true
+
+output:
+  format: json
+  template: |
+    {
+      "request": "{{ data_request }}",
+      "extracted_data": {{ steps.extract_data | tojson }},
+      "formatted_output": {{ steps.format_output | tojson }}
+    }

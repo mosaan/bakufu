@@ -1,0 +1,228 @@
+name: "高度なテキスト処理デモンストレーション"
+description: "v0.4.0の新しいテキスト処理機能を実演します"
+version: "0.4.0"
+
+input_parameters:
+  - name: "csv_data"
+    type: "string"
+    required: true
+    description: "処理するCSVデータ"
+    default: |
+      名前,年齢,職業,給与
+      田中太郎,28,エンジニア,500000
+      佐藤花子,32,デザイナー,450000
+      山田次郎,25,営業,400000
+      鈴木美咲,29,マーケター,480000
+      
+  - name: "structured_text"
+    type: "string"
+    required: true
+    description: "構造化されたテキストデータ"
+    default: |
+      ## プロジェクト概要
+      
+      **プロジェクト名**: Webアプリケーション開発
+      **開始日**: 2024-01-15
+      **予算**: 5,000,000円
+      
+      ### チームメンバー
+      
+      - リーダー: 田中太郎 (エンジニア)
+      - デザイナー: 佐藤花子
+      - 営業担当: 山田次郎
+      
+      ### 進捗状況
+      
+      現在の進捗は70%です。残りのタスクは以下の通りです：
+      
+      1. UI/UXの最終調整
+      2. セキュリティテスト
+      3. デプロイメント準備
+
+steps:
+  # CSVデータを行に分割
+  - id: "split_csv_lines"
+    type: "text_process"
+    method: "split"
+    input: "{{ input.csv_data }}"
+    separator: "\n"
+    
+  # ヘッダー行を選択
+  - id: "get_csv_header"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv_lines }}"
+    index: 0
+    
+  # データ行のみ選択（ヘッダーを除く）
+  - id: "get_csv_data_rows"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.split_csv_lines }}"
+    slice: "1:"
+    
+  # 各データ行をカンマで分割
+  - id: "parse_csv_data"
+    type: "ai_call"
+    prompt: |
+      以下のCSVデータをJSON形式に変換してください：
+      
+      ヘッダー: {{ steps.get_csv_header }}
+      データ行:
+      {% for row in steps.get_csv_data_rows %}
+      - {{ row }}
+      {% endfor %}
+      
+      各行を辞書形式でJSONとして出力してください。
+      
+  # JSONとして解析
+  - id: "parsed_employee_data"
+    type: "text_process"
+    method: "json_parse"
+    input: "{{ steps.parse_csv_data }}"
+    
+  # Markdownテキストをセクションに分割
+  - id: "split_markdown_sections"
+    type: "text_process"
+    method: "markdown_split"
+    input: "{{ input.structured_text }}"
+    split_type: "section"
+    header_level: 2
+    preserve_metadata: true
+    
+  # 日付情報を抽出（名前付きグループ使用）
+  - id: "extract_dates"
+    type: "text_process"
+    method: "regex_extract"
+    input: "{{ input.structured_text }}"
+    pattern: "(?P<year>\\d{4})-(?P<month>\\d{2})-(?P<day>\\d{2})"
+    groups: true
+    output_format: "array"
+    
+  # 金額情報を抽出
+  - id: "extract_amounts"
+    type: "text_process"
+    method: "regex_extract"
+    input: "{{ input.structured_text }}"
+    pattern: "([\\d,]+)円"
+    output_format: "array"
+    
+  # 高給与の従業員をフィルタリング（45万円以上）
+  - id: "filter_high_salary"
+    type: "text_process"
+    method: "array_filter"
+    input: "{{ steps.parsed_employee_data }}"
+    condition: "int(item['給与']) >= 450000"
+    
+  # 従業員名を抽出して変換
+  - id: "get_employee_names"
+    type: "text_process"
+    method: "array_transform"
+    input: "{{ steps.parsed_employee_data }}"
+    transform_expression: "item['名前']"
+    
+  # 平均給与を計算
+  - id: "calculate_average_salary"
+    type: "text_process"
+    method: "array_transform"
+    input: "{{ steps.parsed_employee_data }}"
+    transform_expression: "int(item['給与'])"
+    
+  - id: "average_salary"
+    type: "text_process"
+    method: "array_aggregate"
+    input: "{{ steps.calculate_average_salary }}"
+    aggregate_operation: "avg"
+    
+  # 従業員数をカウント
+  - id: "count_employees"
+    type: "text_process"
+    method: "array_aggregate"
+    input: "{{ steps.parsed_employee_data }}"
+    aggregate_operation: "count"
+    
+  # 給与で降順ソート
+  - id: "sort_by_salary"
+    type: "text_process"
+    method: "array_sort"
+    input: "{{ steps.parsed_employee_data }}"
+    sort_key: "給与"
+    sort_reverse: true
+    
+  # 上位2名を選択
+  - id: "top_salary_employees"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.sort_by_salary }}"
+    slice: "0:2"
+    
+  # レポートをフォーマット
+  - id: "format_report"
+    type: "text_process"
+    method: "format"
+    input: |
+      ## 従業員分析レポート
+      
+      **総従業員数**: {total_count}名
+      **平均給与**: {avg_salary:,.0f}円
+      **高給与者数**: {high_salary_count}名（45万円以上）
+      
+      **給与上位者**:
+      {top_employees}
+      
+      **抽出された日付**: {dates}
+      **プロジェクト予算**: {budget}
+      
+      分析実行日時: {timestamp}
+    values:
+      total_count: "{{ steps.count_employees }}"
+      avg_salary: "{{ steps.average_salary }}"
+      high_salary_count: "{{ steps.filter_high_salary | length }}"
+      top_employees: "{{ steps.top_salary_employees | map(attribute='名前') | join(', ') }}"
+      dates: "{{ steps.extract_dates | join(', ') }}"
+      budget: "{{ steps.extract_amounts | join(', ') }}"
+      timestamp: "{{ now().strftime('%Y年%m月%d日 %H:%M') }}"
+      
+  # データ構造を検証
+  - id: "validate_employee_data"
+    type: "text_process"
+    method: "validate"
+    input: "{{ steps.parsed_employee_data[0] if steps.parsed_employee_data else {} }}"
+    schema:
+      type: "object"
+      required: ["名前", "年齢", "職業", "給与"]
+      properties:
+        名前:
+          type: "string"
+          minLength: 1
+        年齢:
+          type: "string"
+        職業:
+          type: "string"
+        給与:
+          type: "string"
+          pattern: "^\\d+$"
+
+output:
+  format: "text"
+  template: |
+    {{ steps.format_report }}
+    
+    ---
+    
+    ### 詳細データ
+    
+    **抽出されたセクション**:
+    {% for section in steps.split_markdown_sections %}
+    - {{ section.title }} (レベル{{ section.level }})
+    {% endfor %}
+    
+    **全従業員リスト**:
+    {% for employee in steps.parsed_employee_data %}
+    - {{ employee.名前 }} ({{ employee.年齢 }}歳) - {{ employee.職業 }} - {{ employee.給与 }}円
+    {% endfor %}
+    
+    **検証結果**: {% if steps.validate_employee_data %}データ構造OK{% else %}データ構造エラー{% endif %}
+    
+    ---
+    *このレポートはbakufu v0.4.0の新機能を使用して生成されました*

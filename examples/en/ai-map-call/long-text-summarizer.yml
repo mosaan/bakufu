@@ -1,0 +1,92 @@
+name: "Long Text Parallel Summarization"
+description: "Split long text into paragraphs, summarize each paragraph in parallel with AI, then generate overall summary"
+version: "1.0"
+
+input_parameters:
+  - name: "long_text"
+    type: "string"
+    required: true
+    description: "Long text to be summarized"
+  - name: "target_summary_length"
+    type: "integer"
+    required: false
+    default: 200
+    description: "Target summary character count"
+
+steps:
+  # 1. Split long text into paragraphs
+  - id: "split_paragraphs"
+    type: "text_process"
+    method: "regex_extract"
+    description: "Split text into paragraph units"
+    input: "{{ input.long_text }}"
+    pattern: "[^\\n]+(?:\\n(?![\\n])[^\\n]+)*"
+    output_format: "array"
+
+  # 2. Summarize each paragraph in parallel using collection operations
+  - id: "summarize_paragraphs"
+    type: "collection"
+    operation: "map"
+    description: "AI summarization of each paragraph in parallel"
+    input: "{{ steps.split_paragraphs }}"
+    concurrency:
+      max_parallel: 3
+      batch_size: 5
+      delay_between_batches: 0.5
+    error_handling:
+      on_item_failure: "skip"
+      max_retries_per_item: 2
+    steps:
+      - id: "paragraph_summary"
+        type: "ai_call"
+        description: "Summarize individual paragraph"
+        prompt: |
+          Please summarize the following paragraph concisely:
+          
+          {{ item }}
+          
+          Requirements:
+          - Summarize in 1-2 sentences
+          - Don't miss important points
+          - Use clear and readable English
+        # provider: "gemini/gemini-2.0-flash"
+        temperature: 0.3
+        max_tokens: 200
+
+  # 3. Integrate paragraph summaries to create overall summary
+  - id: "create_final_summary"
+    type: "ai_call"
+    description: "Integrate paragraph summaries to create final summary"
+    # provider: "gemini/gemini-2.0-flash"
+    temperature: 0.5
+    max_tokens: 500
+    prompt: |
+      Please integrate the following paragraph summaries to create an overall summary of about {{ input.target_summary_length }} characters:
+      
+      Paragraph summary list:
+      {% for summary in steps.summarize_paragraphs %}
+      {% if summary %}
+      - {{ summary }}
+      {% endif %}
+      {% endfor %}
+      
+      Requirements:
+      - Integrate with logical structure
+      - Select content according to importance
+      - Within {{ input.target_summary_length }} characters
+      - Clear and natural prose
+
+output:
+  format: "text"
+  template: |
+    # Summary of {{ input.long_text | truncate(50) }}...
+    
+    ## 📝 Overall Summary
+    {{ steps.create_final_summary }}
+    
+    ## 📊 Processing Statistics
+    - Original character count: {{ input.long_text | length }} characters
+    - Paragraph count: {{ steps.split_paragraphs | length }}
+    - Summarized paragraph count: {{ steps.summarize_paragraphs | select | list | length }}
+    - Summary character count: {{ steps.create_final_summary | length }} characters
+    - Compression ratio: {{ ((steps.create_final_summary | length) / (input.long_text | length) * 100) | round(1) }}%

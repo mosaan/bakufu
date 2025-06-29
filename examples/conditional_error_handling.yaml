@@ -1,0 +1,121 @@
+name: "条件分岐エラーハンドリングのサンプル"
+description: "条件分岐でのエラーハンドリング戦略の使用例"
+version: "1.0"
+
+input_parameters:
+  - name: input_data
+    type: object
+    required: false
+    description: "テスト用の入力データ"
+  - name: enable_strict_mode
+    type: boolean
+    required: false
+    default: false
+    description: "厳格モードを有効にする（エラー時停止）"
+
+steps:
+  # ステップ1: エラー発生時に停止する条件分岐
+  - id: strict_validation
+    type: conditional
+    description: "厳格な検証（エラー時停止）"
+    condition: "{{ enable_strict_mode and input_data.critical_value > 100 }}"
+    on_condition_error: "stop"
+    if_true:
+      - id: critical_processing
+        type: ai_call
+        prompt: "重要な処理を実行: {{ input_data.critical_value }}"
+    if_false:
+      - id: normal_processing
+        type: ai_call
+        prompt: "通常の処理を実行"
+
+  # ステップ2: エラー発生時に継続する条件分岐
+  - id: flexible_validation
+    type: conditional
+    description: "柔軟な検証（エラー時継続）"
+    condition: "{{ input_data.optional_value > 50 }}"
+    on_condition_error: "continue"
+    if_true:
+      - id: optional_processing
+        type: ai_call
+        prompt: "オプション処理を実行: {{ input_data.optional_value }}"
+    if_false:
+      - id: fallback_processing
+        type: ai_call
+        prompt: "フォールバック処理を実行"
+
+  # ステップ3: エラー発生時に残りをスキップする条件分岐
+  - id: skip_on_error
+    type: conditional
+    description: "エラー時スキップ"
+    condition: "{{ input_data.unreliable_source.data_exists }}"
+    on_condition_error: "skip_remaining"
+    if_true:
+      - id: reliable_processing
+        type: ai_call
+        prompt: "信頼できるデータの処理: {{ input_data.unreliable_source }}"
+
+  # ステップ4: 複数条件でのエラーハンドリング
+  - id: multi_condition_with_errors
+    type: conditional
+    description: "複数条件でのエラーハンドリング"
+    on_condition_error: "continue"
+    conditions:
+      - condition: "{{ input_data.undefined_field.value == 'premium' }}"
+        name: premium_user
+        steps:
+          - id: premium_service
+            type: ai_call
+            prompt: "プレミアムサービスを提供"
+      
+      - condition: "{{ input_data.missing_field > 0 }}"
+        name: valid_user
+        steps:
+          - id: standard_service
+            type: ai_call
+            prompt: "標準サービスを提供"
+      
+      - condition: ""
+        name: guest_user
+        default: true
+        steps:
+          - id: guest_service
+            type: ai_call
+            prompt: "ゲストサービスを提供"
+
+  # ステップ5: エラー情報を含む結果のレポート
+  - id: error_report
+    type: ai_call
+    description: "エラーハンドリング結果のレポート"
+    prompt: |
+      条件分岐の実行結果をレポートしてください：
+      
+      厳格な検証:
+      - 実行された分岐: {{ steps.strict_validation.executed_branch or "なし" }}
+      - 条件結果: {{ steps.strict_validation.condition_result }}
+      - エラー: {{ steps.strict_validation.evaluation_error or "なし" }}
+      
+      柔軟な検証:
+      - 実行された分岐: {{ steps.flexible_validation.executed_branch or "なし" }}
+      - 条件結果: {{ steps.flexible_validation.condition_result }}
+      - エラー: {{ steps.flexible_validation.evaluation_error or "なし" }}
+      
+      エラー時スキップ:
+      - 実行された分岐: {{ steps.skip_on_error.executed_branch or "なし" }}
+      - 条件結果: {{ steps.skip_on_error.condition_result }}
+      - エラー: {{ steps.skip_on_error.evaluation_error or "なし" }}
+      
+      複数条件:
+      - 実行された分岐: {{ steps.multi_condition_with_errors.executed_branch or "なし" }}
+      - 条件結果: {{ steps.multi_condition_with_errors.condition_result }}
+      - エラー: {{ steps.multi_condition_with_errors.evaluation_error or "なし" }}
+      
+      各ステップでどのようなエラーハンドリングが実行されたかを
+      わかりやすく説明してください。
+
+output:
+  format: text
+  template: |
+    === エラーハンドリング実行結果 ===
+    
+    {{ steps.error_report }}

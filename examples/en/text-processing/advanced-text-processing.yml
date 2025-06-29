@@ -1,0 +1,170 @@
+name: "Advanced Text Processing Showcase"
+description: "Demonstrates the new v0.4.0 text processing features"
+version: "0.4.0"
+
+input_parameters:
+  - name: "xml_data"
+    type: "string"
+    required: true
+    description: "Sample XML data to process"
+    default: |
+      <products>
+        <product id="1" category="electronics">
+          <name>Laptop</name>
+          <price>999.99</price>
+          <specs>
+            <cpu>Intel i7</cpu>
+            <ram>16GB</ram>
+          </specs>
+        </product>
+        <product id="2" category="books">
+          <name>Python Guide</name>
+          <price>29.99</price>
+        </product>
+      </products>
+      
+  - name: "log_data"
+    type: "string"
+    required: true
+    description: "Sample log data"
+    default: |
+      [2024-01-15 10:30:25] ERROR: Failed to connect to database
+      [2024-01-15 10:30:26] INFO: Retrying connection...
+      [2024-01-15 10:30:27] SUCCESS: Database connection established
+      [2024-01-15 10:31:15] WARNING: High memory usage detected
+      [2024-01-15 10:32:00] INFO: Backup process started
+
+steps:
+  # XML-like Data Extraction using regex
+  - id: "extract_product_names"
+    type: "text_process"
+    method: "regex_extract"
+    input: "{{ input.xml_data }}"
+    pattern: "<name>([^<]+)</name>"
+    output_format: "array"
+    
+  - id: "extract_electronics"
+    type: "text_process"
+    method: "regex_extract"
+    input: "{{ input.xml_data }}"
+    pattern: "<product[^>]*category=['"]electronics['"][^>]*>.*?</product>"
+    output_format: "array"
+    
+  # Log Processing - Extract timestamps
+  - id: "parse_log_entries"
+    type: "text_process"
+    method: "regex_extract"
+    input: "{{ input.log_data }}"
+    pattern: "\\[([^\\]]+)\\]"
+    output_format: "array"
+    
+  # Split log lines for processing
+  - id: "split_log_lines"
+    type: "text_process"
+    method: "split"
+    input: "{{ input.log_data }}"
+    separator: "\n"
+    
+  # Filter error-level logs
+  - id: "filter_error_logs"
+    type: "text_process"
+    method: "array_filter"
+    input: "{{ steps.split_log_lines }}"
+    condition: "'ERROR' in item"
+    
+  # Extract timestamps from parsed entries
+  - id: "get_log_timestamps"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.parse_log_entries }}"
+    slice: "0:3"
+    
+  # Count different log levels
+  - id: "count_total_logs"
+    type: "ai_call"
+    prompt: "Count the number of log entries in this data: {{ steps.split_log_lines.output | length }}"
+    
+  # Create formatted summary using AI
+  - id: "format_processing_summary"
+    type: "ai_call"
+    prompt: |
+      Create a formatted summary using the following data:
+      - Total products found: {{ steps.extract_product_names.output | length }}
+      - Electronics products: {{ steps.extract_electronics.output | length }}
+      - Total log entries: {{ steps.split_log_lines.output | length }}
+      - Error logs: {{ steps.filter_error_logs.output | length }}
+      - Processing time: {timestamp}
+    values:
+      product_count: "{{ steps.extract_product_names | length }}"
+      electronics_count: "{{ steps.extract_electronics | length }}"
+      log_count: "{{ steps.count_total_logs }}"
+      error_count: "{{ steps.filter_error_logs | length }}"
+      timestamp: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      
+  # Parse and validate log structure using JSON parsing
+  - id: "validate_log_structure"
+    type: "text_process"
+    method: "parse_as_json"
+    input: '{ "timestamp": "sample", "level": "INFO", "message": "test" }'
+    strict_validation: false
+      properties:
+        timestamp:
+          type: "string"
+        level:
+          type: "string"
+          enum: ["ERROR", "WARNING", "INFO", "SUCCESS"]
+        message:
+          type: "string"
+          minLength: 1
+          
+  # Sort products by extracted names
+  - id: "sort_product_names"
+    type: "text_process"
+    method: "array_sort"
+    input: "{{ steps.extract_product_names }}"
+    sort_reverse: false
+    
+  # Select first product name
+  - id: "select_first_product"
+    type: "text_process"
+    method: "select_item"
+    input: "{{ steps.sort_product_names }}"
+    index: 0
+
+output:
+  format: "json"
+  template: |
+    {
+      "processing_summary": {{ steps.format_processing_summary | tojson }},
+      "extracted_data": {
+        "all_product_names": {{ steps.extract_product_names | tojson }},
+        "electronics_products": {{ steps.extract_electronics | tojson }},
+        "parsed_log_entries": {{ steps.parse_log_entries | tojson }},
+        "error_logs": {{ steps.filter_error_logs | tojson }}
+      },
+      "statistics": {
+        "total_products": {{ steps.extract_product_names | length }},
+        "total_logs": {{ steps.count_total_logs }},
+        "error_count": {{ steps.filter_error_logs | length }},
+        "first_product": {{ steps.select_first_product | tojson }}
+      },
+      "validation": {
+        "log_structure_valid": {% if steps.validate_log_structure %}true{% else %}false{% endif %}
+      },
+      "metadata": {
+        "workflow_version": "v0.4.0",
+        "new_features_used": [
+          "xml_extract",
+          "regex_extract with named groups", 
+          "split",
+          "array_filter",
+          "array_transform",
+          "array_aggregate", 
+          "array_sort",
+          "select_item",
+          "format",
+          "validate"
+        ],
+        "processed_at": "{{ now().isoformat() }}"
+      }
+    }

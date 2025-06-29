@@ -1,0 +1,70 @@
+name: "JSON Data Extraction & Formatting"
+description: "A workflow that extracts JSON data from text and retrieves specified fields"
+
+input_parameters:
+  - name: "text"
+    type: "string"
+    required: true
+    description: "Text containing JSON data"
+  - name: "field_path"
+    type: "string"
+    required: false
+    description: "Path of field to extract (e.g., data.items.0.name)"
+    default: ""
+
+steps:
+  - id: "extract_json"
+    type: "text_process"
+    description: "Extract JSON from text"
+    method: "regex_extract"
+    input: "{{ input.text }}"
+    pattern: '\{[^}]*\}'
+    flags: ["MULTILINE", "DOTALL"]
+    output_format: "string"
+
+  - id: "parse_json"
+    type: "text_process"
+    description: "Parse JSON"
+    method: "json_parse"
+    input: "{{ steps.extract_json }}"
+
+  - id: "extract_field"
+    type: "ai_call"
+    description: "Extract specified field"
+    prompt: |
+      Please extract the data corresponding to path "{{ input.field_path }}" from the following JSON data.
+      
+      JSON Data:
+      {{ steps.parse_json | tojson(indent=2) }}
+      
+      {% if input.field_path %}
+      Extraction path: {{ input.field_path }}
+      
+      Please return only the data for the specified path. If the path doesn't exist, return "Data not found".
+      {% else %}
+      Since no field path is specified, please display the overall structure in an understandable way.
+      {% endif %}
+
+  - id: "format_result"
+    type: "text_process"
+    description: "Format result"
+    method: "replace"
+    input: |
+      🔍 JSON Data Extraction Result
+      
+      【Original Data】
+      {{ steps.extract_json }}
+      
+      {% if input.field_path %}
+      【Extraction Path】{{ input.field_path }}
+      {% endif %}
+      
+      【Extraction Result】
+      {{ steps.extract_field }}
+    replacements:
+      - from: "{{ steps.extract_json }}"
+        to: "{{ steps.extract_json[:100] }}{% if steps.extract_json | length > 100 %}...{% endif %}"
+
+output:
+  format: "text"
+  template: "{{ steps.format_result }}"
