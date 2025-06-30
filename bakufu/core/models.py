@@ -372,6 +372,12 @@ class ExecutionContext(BaseModel):
     step_outputs: dict[str, Any] = Field(default_factory=dict)
     config: WorkflowConfig
 
+    # MCP sampling mode
+    sampling_mode: bool = Field(
+        default=False, description="Use MCP sampling instead of LLM providers"
+    )
+    mcp_context: Any = Field(default=None, description="FastMCP Context for sampling API")
+
     # Template engine (not serialized)
     _template_engine: WorkflowTemplateEngine = PrivateAttr(default_factory=WorkflowTemplateEngine)
 

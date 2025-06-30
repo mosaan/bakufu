@@ -12,6 +12,8 @@ bakufu (瀑布, "great waterfall" in Japanese) is a powerful workflow automation
 
 ### 🤖 AI Provider Integration
 - **LiteLLM backed**: Multiple AI provider integration using LiteLLM
+- **MCP Sampling Support**: Use GitHub Copilot's LLM via Model Context Protocol
+- **Dual Mode Operation**: Switch between traditional providers and MCP sampling
 
 ### 📝 Text Processing Capabilities
 - **Regex Extraction** - Data extraction through pattern matching
@@ -58,9 +60,11 @@ bakufu (瀑布, "great waterfall" in Japanese) is a powerful workflow automation
 
 ### 🔌 MCP (Model Context Protocol) Integration
 - **MCP Server** - Run bakufu workflows as MCP tools for compatible clients
+- **Sampling Mode** - Use GitHub Copilot's LLM via MCP sampling API (no API key required)
 - **Dynamic Tool Registration** - Automatically expose all workflows as individual MCP tools
+- **Dual Mode Support** - Switch between traditional LLM providers and MCP sampling
 - **Unified Input Processing** - Support for `@file:` and `@value:` prefixes in MCP tool parameters
-- **Client Compatibility** - Works with Claude Desktop, Cursor, and other MCP-compatible applications
+- **Client Compatibility** - Works with Claude Desktop, Cursor, GitHub Copilot, and other MCP-compatible applications
 - **Real-time Workflow Discovery** - Automatic detection and registration of new workflows
 
 ## 🚀 Quick Start
@@ -104,6 +108,34 @@ bakufu validate --verbose my-workflow.yml
 ```
 
 see [docs](docs/README.md) for more details.
+
+## 🔌 MCP Server Usage
+
+### GitHub Copilot Integration
+
+Use bakufu workflows directly in GitHub Copilot with MCP sampling mode:
+
+```bash
+# Start MCP server with sampling mode (no API key required)
+bakufu-mcp --workflow-dir examples/ja/basic --config bakufu.yml --sampling-mode --verbose
+```
+
+Then in GitHub Copilot Chat:
+```
+@bakufu-mcp-sampling execute_mcp_test {"message": "Hello from Copilot!"}
+@bakufu-mcp-sampling execute_code_review {"code": "def hello():\n    print('world')", "language": "python"}
+```
+
+### Traditional LLM Providers
+
+Use with your own API keys for Gemini, OpenAI, etc.:
+
+```bash
+# Standard mode with LiteLLM providers
+bakufu-mcp --workflow-dir examples/ja/basic --config bakufu.yml --verbose
+```
+
+See [MCP_SETUP.md](./MCP_SETUP.md) for detailed setup instructions.
 
 ## 🔧 Developer Information
 

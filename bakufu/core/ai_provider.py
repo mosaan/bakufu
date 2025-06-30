@@ -3,6 +3,7 @@
 import asyncio
 import os
 import warnings
+from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -52,12 +53,40 @@ class AIProviderError(Exception):
         self.original_error = original_error
 
 
-class AIProvider:
+class BaseAIProvider(ABC):
+    """Abstract base class for AI providers"""
+
+    def __init__(self, config: AIProviderConfig):
+        self.config = config
+
+    @abstractmethod
+    async def complete(self, prompt: str, **kwargs: Any) -> AIResponse:
+        """Generate completion from AI provider"""
+        pass
+
+    # stream_complete is implemented by subclasses with async generator pattern
+
+    @abstractmethod
+    def test_connection(self) -> tuple[bool, str]:
+        """Test connection to AI provider"""
+        pass
+
+    def _get_temperature(self, kwargs: dict[str, Any]) -> float:
+        """Get temperature parameter with fallback to config"""
+        temp = kwargs.get("temperature", self.config.temperature)
+        return float(temp)
+
+    def _get_max_tokens(self, kwargs: dict[str, Any]) -> int | None:
+        """Get max_tokens parameter with fallback to config"""
+        return kwargs.get("max_tokens", self.config.max_tokens)
+
+
+class AIProvider(BaseAIProvider):
     """AI provider using LiteLLM for multiple AI services"""
 
     def __init__(self, config: AIProviderConfig):
         """Initialize AI provider with configuration"""
-        self.config = config
+        super().__init__(config)
 
         # Set up API keys from environment or config
         self._setup_api_keys()
@@ -198,6 +227,57 @@ class AIProvider:
 
         except Exception as e:
             return False, f"Connection failed: {e}"
+
+
+class MCPSamplingProvider(BaseAIProvider):
+    """AI provider using MCP Sampling API"""
+
+    def __init__(self, mcp_context: Any, config: AIProviderConfig):
+        """Initialize MCP Sampling provider with context and configuration"""
+        super().__init__(config)
+        self.mcp_context = mcp_context
+
+    async def complete(self, prompt: str, **kwargs: Any) -> AIResponse:
+        """Generate completion using MCP sampling API"""
+        try:
+            # Prepare sampling parameters using inherited methods
+            temperature = self._get_temperature(kwargs)
+            max_tokens = self._get_max_tokens(kwargs)
+
+            # Use MCP sampling API
+            response = await self.mcp_context.sample(
+                messages=prompt, temperature=temperature, max_tokens=max_tokens
+            )
+
+            return AIResponse(
+                content=response.text,
+                provider="mcp_sampling",
+                model="client_llm",
+                usage=None,  # MCP sampling doesn't provide usage stats
+                finish_reason="stop",
+                cost_usd=None,  # No cost for MCP sampling
+            )
+
+        except Exception as e:
+            raise AIProviderError(
+                f"MCP sampling failed: {e}",
+                "mcp_sampling",
+                e,
+            ) from e
+
+    async def stream_complete(self, prompt: str, **kwargs: Any) -> AsyncGenerator[str, None]:
+        """MCP sampling doesn't support streaming, fallback to complete"""
+        response = await self.complete(prompt, **kwargs)
+        yield response.content
+
+    def test_connection(self) -> tuple[bool, str]:
+        """Test MCP context availability"""
+        try:
+            if self.mcp_context is None:
+                return False, "MCP context is not available"
+            return True, "MCP sampling provider is available"
+        except Exception as e:
+            return False, f"MCP context test failed: {e}"
 
 
 class AIProviderManager:

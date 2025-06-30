@@ -68,6 +68,25 @@ bakufu config <サブコマンド>
 | `init` | 基本設定ファイルを作成 | `--path <path>`: 設定ファイルの作成先<br>`--global`: グローバル設定として作成 |
 | `list` | 現在の設定を表示 | `--path <path>`: 設定ファイルのパス |
 
+## MCP Server Commands
+
+### `bakufu-mcp` - MCP Server起動
+
+```bash
+bakufu-mcp [オプション]
+```
+
+Model Context Protocol（MCP）サーバーとしてbakufuワークフローを起動します。
+
+#### オプション
+
+| オプション | 説明 | 例 |
+|-----------|------|-----|
+| `--workflow-dir <path>` | ワークフローディレクトリのパス | `--workflow-dir examples/ja/basic` |
+| `--config <path>` | 設定ファイルのパス | `--config bakufu.yml` |
+| `--sampling-mode` | MCP Sampling Mode（GitHub Copilot使用） | |
+| `--verbose` | 詳細ログ出力を有効化 | |
+
 ## 使用例
 
 ### 基本的なワークフロー実行
@@ -104,6 +123,19 @@ bakufu config init --path ./config/bakufu.yml
 
 # 現在の設定を表示
 bakufu config list
+```
+
+### MCP Server起動
+
+```bash
+# GitHub Copilot Sampling Mode（推奨）
+bakufu-mcp --workflow-dir examples/ja/basic --config bakufu.yml --sampling-mode --verbose
+
+# 従来モード（APIキー使用）
+bakufu-mcp --workflow-dir examples/en/basic --config bakufu.yml --verbose
+
+# 最小構成（Sampling Mode）
+bakufu-mcp --workflow-dir examples/ja/basic --sampling-mode
 ```
 
 ---

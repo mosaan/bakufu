@@ -1,0 +1,22 @@
+name: mcp-test
+description: MCPとGitHub Copilotの統合テスト用シンプルワークフロー
+version: "1.0"
+
+input_parameters:
+  - name: message
+    type: string
+    required: true
+    description: 処理するメッセージ
+    default: "MCPからこんにちは！"
+
+steps:
+  - id: ai_response
+    type: ai_call
+    prompt: |
+      以下のメッセージに対して、親しみやすく役立つ方法で日本語で応答してください: {{ input.message }}
+      
+      応答は簡潔で前向きなものにしてください。
+
+output:
+  format: text
+  template: "{{ steps.ai_response }}"

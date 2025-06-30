@@ -9,6 +9,8 @@ Model Context Protocol（MCP）は、AIアプリケーションが外部デー�
 ## 主要機能
 
 - **動的ワークフロー登録**: 指定ディレクトリ内のワークフローファイル（.yml/.yaml）を自動検出・登録
+- **MCP Sampling Mode**: GitHub CopilotのLLMをMCP Sampling API経由で利用（APIキー不要）
+- **デュアルモード運用**: 従来のLLMプロバイダーとMCP Samplingの切り替え対応
 - **統合入力処理**: `@file:`と`@value:`プレフィックスによる柔軟な入力処理
 - **自動パラメータ検証**: ワークフロー定義に基づく入力パラメータの型チェックと必須項目検証
 - **実行時統計**: AI使用量（API呼び出し回数、トークン数、コスト）とパフォーマンス情報
@@ -17,6 +19,20 @@ Model Context Protocol（MCP）は、AIアプリケーションが外部デー�
 ## セットアップ
 
 ### 1. MCPサーバーの起動
+
+#### GitHub Copilot Sampling Mode（推奨）
+APIキー不要でGitHub CopilotのLLMを使用：
+
+```bash
+# GitHub Copilot Sampling Mode
+bakufu-mcp --workflow-dir examples/ja/basic --config bakufu.yml --sampling-mode --verbose
+
+# 最小構成
+bakufu-mcp --workflow-dir examples/ja/basic --sampling-mode
+```
+
+#### 従来のLLMプロバイダーモード
+Gemini、OpenAIなどのAPIキーを使用：
 
 ```bash
 # 基本的な使用方法
@@ -29,13 +45,54 @@ bakufu-mcp --workflow-dir /path/to/workflows --config /path/to/bakufu.yml
 bakufu-mcp --workflow-dir examples/en/basic --verbose
 ```
 
-### 2. Claude Desktop設定
+### 2. MCP Client設定
 
-Claude Desktop設定ファイルに以下を追加：
+#### VS Code（GitHub Copilot統合）
+`.vscode/mcp.json`設定例：
+
+```json
+{
+  "servers": {
+    "bakufu-mcp-sampling": {
+      "command": "uv",
+      "args": [
+        "run",
+        "bakufu-mcp",
+        "--workflow-dir",
+        "examples/ja/basic",
+        "--config",
+        "bakufu.yml",
+        "--sampling-mode",
+        "--verbose"
+      ],
+      "cwd": "/path/to/bakufu"
+    }
+  }
+}
+```
+
+#### Claude Desktop設定
 
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
+**Sampling Mode（推奨）:**
+```json
+{
+  "mcpServers": {
+    "bakufu-sampling": {
+      "command": "bakufu-mcp",
+      "args": [
+        "--workflow-dir", "/path/to/your/workflows",
+        "--config", "/path/to/bakufu.yml",
+        "--sampling-mode"
+      ]
+    }
+  }
+}
+```
+
+**従来モード（APIキー使用）:**
 ```json
 {
   "mcpServers": {
@@ -54,9 +111,27 @@ Claude Desktop設定ファイルに以下を追加：
 }
 ```
 
-### 3. Claude Desktopの再起動
+### 3. APIキー設定（従来モードのみ）
 
-設定保存後、Claude Desktopを再起動してください。bakufuワークフローがツールとして利用可能になります。
+Sampling Modeを使用する場合は不要です。従来モードでLLMプロバイダーを使用する場合のみ設定してください。
+
+Create a `bakufu.yml` config file:
+
+```yaml
+default_provider: "gemini/gemini-2.0-flash"
+provider_settings:
+  gemini:
+    api_key: "${GOOGLE_API_KEY}"  # Set this environment variable
+```
+
+または環境変数を設定：
+```bash
+export GOOGLE_API_KEY="your_api_key_here"
+```
+
+### 4. MCP Clientの再起動
+
+設定保存後、MCPクライアント（Claude Desktop、VS Codeなど）を再起動してください。bakufuワークフローがツールとして利用可能になります。
 
 ## 利用可能なツール
 
@@ -195,6 +270,41 @@ MCPクライアント（Claude Desktop、MCP Inspectorなど）では、ツー�
 }
 ```
 
+## GitHub Copilot統合での使用例
+
+Sampling Modeを使用してGitHub Copilot Chat内でbakufuワークフローを実行：
+
+### 基本的な使用方法
+
+**MCP Test Workflow:**
+```
+@bakufu-mcp-sampling execute_mcp_test {"message": "GitHub Copilotからこんにちは！"}
+```
+
+**Code Review Workflow:**
+```
+@bakufu-mcp-sampling execute_code_review {
+  "code": "def calculate_total(items):\n    total = 0\n    for item in items:\n        total += item.price\n    return total",
+  "language": "python"
+}
+```
+
+**利用可能なワークフロー一覧:**
+```
+@bakufu-mcp-sampling list_available_workflows
+```
+
+### Sampling Mode vs 従来モード比較
+
+| 項目 | Sampling Mode | 従来モード |
+|------|---------------|------------|
+| LLMプロバイダー | GitHub Copilot | Gemini/OpenAI/etc. |
+| APIキー | 不要 | 必要 |
+| コスト | Copilotサブスクリプションに含まれる | 使用量課金 |
+| パフォーマンス | 良好 | 高い |
+| セットアップ複雑度 | 簡単 | 中程度 |
+| オフライン対応 | 不可 | 不可 |
+
 ## 実行結果とメタデータ
 
 ワークフロー実行時には以下の情報が提供されます：
@@ -239,15 +349,26 @@ MCPクライアント（Claude Desktop、MCP Inspectorなど）では、ツー�
    - Claude Desktopの完全な再起動
 
 4. **ワークフロー実行エラー**
-   - API キーの環境変数設定を確認
+   - **Sampling Mode**: GitHub Copilotが有効でログイン済みかを確認
+   - **従来モード**: API キーの環境変数設定を確認
    - 入力パラメータの型と必須項目を確認
    - ワークフロー定義のステップ構文を確認
+
+5. **Sampling Mode特有の問題**
+   - GitHub Copilotのライセンスが有効か確認
+   - VS CodeでGitHub Copilot拡張機能が有効か確認
+   - `--sampling-mode`フラグがMCP設定に含まれているか確認
+   - MCPクライアントの再起動を試行
 
 ### デバッグログの活用
 
 詳細なログで問題を特定：
 
 ```bash
+# Sampling Mode
+bakufu-mcp --workflow-dir examples/ja/basic --sampling-mode --verbose
+
+# 従来モード
 bakufu-mcp --workflow-dir examples/en/basic --verbose
 ```
 

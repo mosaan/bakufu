@@ -1,0 +1,59 @@
+name: code-review
+description: AI-powered code review workflow for MCP integration
+version: "1.0"
+
+input_parameters:
+  - name: code
+    type: string
+    required: true
+    description: The code to review
+  - name: language
+    type: string
+    required: false
+    default: "auto-detect"
+    description: Programming language (auto-detect if not specified)
+
+steps:
+  - id: analyze_code
+    type: ai_call
+    prompt: |
+      Please review the following {{ input.language }} code and provide feedback:
+      
+      ```
+      {{ input.code }}
+      ```
+      
+      Focus on:
+      1. Code quality and best practices
+      2. Potential bugs or issues
+      3. Performance improvements
+      4. Readability and maintainability
+      
+      Provide constructive feedback in a clear, organized format.
+
+  - id: suggest_improvements
+    type: ai_call
+    prompt: |
+      Based on this code analysis:
+      {{ steps.analyze_code }}
+      
+      Please provide 3-5 specific, actionable improvement suggestions for the original code:
+      ```
+      {{ input.code }}
+      ```
+      
+      Format each suggestion as:
+      - **Issue**: [Brief description]
+      - **Solution**: [Specific fix or improvement]
+      - **Example**: [Code example if applicable]
+
+output:
+  format: text
+  template: |
+    # Code Review Results
+    
+    ## Analysis
+    {{ steps.analyze_code }}
+    
+    ## Improvement Suggestions
+    {{ steps.suggest_improvements }}

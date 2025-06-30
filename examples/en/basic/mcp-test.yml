@@ -1,0 +1,22 @@
+name: mcp-test
+description: Simple workflow for testing MCP integration with GitHub Copilot
+version: "1.0"
+
+input_parameters:
+  - name: message
+    type: string
+    required: true
+    description: The message to process
+    default: "Hello from MCP!"
+
+steps:
+  - id: ai_response
+    type: ai_call
+    prompt: |
+      Please respond to this message in a friendly and helpful way: {{ input.message }}
+      
+      Keep your response concise and positive.
+
+output:
+  format: text
+  template: "{{ steps.ai_response }}"

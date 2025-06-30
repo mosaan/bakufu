@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 
 from bakufu.mcp_integration import create_mcp_integrator
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Global integrator instance
 integrator = None
+sampling_mode = False
 
 
 async def initialize_integrator(workflow_dir: Path, config_path: Path) -> None:
@@ -95,7 +96,7 @@ async def register_dynamic_workflow_tools() -> None:
 
             # Create dynamic tool function with closure over workflow info
             def create_workflow_executor(wf_name: str, wf_params: Any) -> Callable:
-                async def execute_workflow(input: dict) -> str:
+                async def execute_workflow(input: dict, ctx: Context) -> str:
                     """Execute a specific workflow with provided parameters."""
                     global integrator
                     if integrator is None:
@@ -106,8 +107,12 @@ async def register_dynamic_workflow_tools() -> None:
                         if not isinstance(input, dict):
                             return f"❌ Input must be a JSON object, got {type(input).__name__}"
 
+                        # Pass MCP context and sampling mode to integrator
                         result = await integrator.execute_workflow(
-                            workflow_name=wf_name, input_arguments=input
+                            workflow_name=wf_name,
+                            input_arguments=input,
+                            mcp_context=ctx if sampling_mode else None,
+                            sampling_mode=sampling_mode,
                         )
 
                         if result.success:
@@ -179,8 +184,17 @@ async def main_async() -> None:
         "--config", type=Path, default=Path("bakufu.yml"), help="Path to configuration file"
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--sampling-mode",
+        action="store_true",
+        help="Use MCP sampling instead of LLM providers",
+    )
 
     args = parser.parse_args()
+
+    # Set global sampling mode
+    global sampling_mode
+    sampling_mode = args.sampling_mode
 
     # Configure logging
     log_level = logging.DEBUG if args.verbose else logging.INFO

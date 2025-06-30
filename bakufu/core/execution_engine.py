@@ -3,7 +3,13 @@
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from .ai_provider import AIProvider, AIProviderConfig, AIProviderError
+from .ai_provider import (
+    AIProvider,
+    AIProviderConfig,
+    AIProviderError,
+    BaseAIProvider,
+    MCPSamplingProvider,
+)
 from .base_types import WorkflowStep
 from .collection_processors import CollectionProcessor
 from .exceptions import (
@@ -151,7 +157,12 @@ class WorkflowExecutionEngine:
             provider_config.extra_params.update(getattr(step, "ai_params", {}))
 
         try:
-            ai_provider = AIProvider(provider_config)
+            # Choose provider based on sampling mode
+            ai_provider: BaseAIProvider
+            if context.sampling_mode and context.mcp_context:
+                ai_provider = MCPSamplingProvider(context.mcp_context, provider_config)
+            else:
+                ai_provider = AIProvider(provider_config)
 
             # Handle validation if specified
             if step.validation:
@@ -190,7 +201,7 @@ class WorkflowExecutionEngine:
             ) from e
 
     async def _execute_ai_call_with_validation(
-        self, ai_provider: AIProvider, prompt: str, step: AICallStep, context: ExecutionContext
+        self, ai_provider: BaseAIProvider, prompt: str, step: AICallStep, context: ExecutionContext
     ) -> str:
         """Execute AI call with output validation and retry logic"""
         if step.validation is None:

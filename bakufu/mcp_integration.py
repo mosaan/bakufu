@@ -112,7 +112,11 @@ class MCPWorkflowIntegrator:
         return workflows
 
     async def execute_workflow(
-        self, workflow_name: str, input_arguments: dict[str, Any]
+        self,
+        workflow_name: str,
+        input_arguments: dict[str, Any],
+        mcp_context: Any = None,
+        sampling_mode: bool = False,
     ) -> WorkflowExecutionResult:
         """
         Execute a workflow with the given input arguments.
@@ -120,6 +124,8 @@ class MCPWorkflowIntegrator:
         Args:
             workflow_name: Name of the workflow to execute
             input_arguments: Input arguments for the workflow
+            mcp_context: MCP Context for sampling API (optional)
+            sampling_mode: Whether to use MCP sampling instead of LLM providers
 
         Returns:
             Workflow execution result
@@ -166,7 +172,11 @@ class MCPWorkflowIntegrator:
             # Create execution context
             assert self._config is not None
             context = ExecutionContext(
-                workflow_name=workflow_name, input_data=processed_inputs, config=self._config
+                workflow_name=workflow_name,
+                input_data=processed_inputs,
+                config=self._config,
+                sampling_mode=sampling_mode,
+                mcp_context=mcp_context,
             )
 
             # Execute workflow
