@@ -32,7 +32,75 @@ async def initialize_integrator(workflow_dir: Path, config_path: Path) -> None:
 
 
 # Create FastMCP server instance
-mcp: FastMCP = FastMCP(name="bakufu-mcp-server")
+mcp: FastMCP = FastMCP(
+    name="bakufu-mcp-server",
+    # description for the server.
+    # especially prefix treatment like "@file:" & "@value:" is important feature and we must explain it.
+    # these are handled by all dynamic tools.
+    instructions="""
+    This is the Bakufu MCP Server, which allows you to execute predefined workflows in Bakufu.
+    All workflow tools (except `list_available_workflows`) require a JSON object as input.
+    Each workflow has specific input parameters that must be provided.
+    
+    ## Special Input Prefixes
+    
+    The Bakufu MCP Server supports powerful prefix-based input processing for flexible data handling:
+    
+    ### @file: Prefix - File Content Loading
+    Syntax: `@file:<path>:<format>:<encoding>`
+    - **path** (required): File path (absolute or relative)
+    - **format** (optional): Data format - defaults to "text"
+    - **encoding** (optional): Character encoding - defaults to "utf-8"
+    
+    Supported formats:
+    - `text` (default): Plain text content as string
+    - `lines`: Text content as array of lines
+    - `json`: JSON files parsed to objects
+    - `yaml`/`yml`: YAML files parsed to objects
+    - `csv`: CSV files as array of dictionaries
+    - `tsv`: TSV files as array of dictionaries
+    
+    Examples:
+    - `@file:/path/to/document.txt` (plain text, UTF-8)
+    - `@file:/data/config.json:json` (JSON format)
+    - `@file:/logs/app.log:lines` (text lines array)
+    - `@file:/data/report.csv:csv` (CSV as object array)
+    - `@file:/path/file.txt:text:shift_jis` (specific encoding)
+    
+    ### @value: Prefix - JSON Parsing
+    Syntax: `@value:<JSON_STRING>`
+    Parses JSON strings into their corresponding data types.
+    
+    Examples:
+    - `@value:{"key": "value", "count": 42}` (object)
+    - `@value:["item1", "item2", "item3"]` (array)
+    - `@value:"simple string"` (string)
+    - `@value:42` (number)
+    - `@value:true` (boolean)
+    
+    ### Usage Examples
+    
+    **Value-based syntax** (prefix in value):
+    ```json
+    {
+        "document": "@file:/path/to/report.txt",
+        "settings": "@value:{\"max_length\": 200, \"format\": \"summary\"}",
+        "data": "@file:/data/input.json:json"
+    }
+    ```
+    
+    **Key-based syntax** (prefix in key):
+    ```json
+    {
+        "@file:document": "/path/to/report.txt:text",
+        "@value:settings": "{\"max_length\": 200, \"format\": \"summary\"}",
+        "@file:data": "/data/input.json:json"
+    }
+    ```
+    
+    Both syntaxes are supported and can be mixed within the same input. These prefixes enable dynamic content loading and structured data input, making workflows more flexible and reusable.
+    """,
+)
 
 
 @mcp.tool
@@ -95,7 +163,7 @@ async def register_dynamic_workflow_tools() -> None:
             tool_name = "execute_" + "".join(c for c in tool_name if c.isalnum() or c == "_")
 
             # Create dynamic tool function with closure over workflow info
-            def create_workflow_executor(wf_name: str, wf_params: Any) -> Callable:
+            def create_workflow_executor(wf_name: str) -> Callable:
                 async def execute_workflow(input: dict, ctx: Context) -> str:
                     """Execute a specific workflow with provided parameters."""
                     global integrator
@@ -135,7 +203,7 @@ async def register_dynamic_workflow_tools() -> None:
                 return execute_workflow
 
             # Create the function with proper closure
-            tool_func = create_workflow_executor(workflow.name, workflow.input_parameters)
+            tool_func = create_workflow_executor(workflow.name)
 
             # Set function metadata
             tool_func.__name__ = tool_name

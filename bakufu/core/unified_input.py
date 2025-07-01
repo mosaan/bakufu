@@ -177,18 +177,120 @@ class UnifiedInputProcessor:
         Returns:
             Processed file content
         """
-        MAX_PARTS = 3
-        ENCODING_INDEX = 2
-        parts = file_spec.split(":", MAX_PARTS - 1)
-        file_path = parts[0]
-        file_format = parts[1] if len(parts) > 1 else "text"
-        encoding = parts[ENCODING_INDEX] if len(parts) > ENCODING_INDEX else "utf-8"
+        # Handle Windows absolute paths by checking for drive letters
+        file_path, file_format, encoding = self._parse_file_spec(file_spec)
 
         # Use existing file processor logic
         file_input_spec = f"temp={file_path}:{file_format}:{encoding}"
         processed = self.file_processor.process_file_inputs((file_input_spec,))
 
         return processed.get("temp") if processed else None
+
+    def _parse_file_spec(self, file_spec: str) -> tuple[str, str, str]:
+        """
+        Parse file specification handling Windows absolute paths.
+
+        Args:
+            file_spec: File specification (path:format:encoding)
+
+        Returns:
+            Tuple of (file_path, file_format, encoding)
+        """
+        import re
+
+        # Constants for path parsing
+        PARTS_WITH_FORMAT = 2
+        PARTS_WITH_FORMAT_AND_ENCODING = 3
+        MAX_SPLITS = 2
+
+        # Check if this looks like a Windows absolute path (C:, D:, etc.)
+        windows_drive_pattern = r"^[A-Za-z]:[/\\]"
+        if re.match(windows_drive_pattern, file_spec):
+            # For Windows absolute paths, we need to be more careful about colon parsing
+            # Strategy: Skip the drive letter colon and work on the rest
+
+            known_formats = {"text", "json", "yaml", "yml", "csv", "tsv", "lines"}
+            common_encodings = {
+                "utf-8",
+                "utf-16",
+                "ascii",
+                "latin-1",
+                "cp1252",
+                "shift_jis",
+                "euc-jp",
+            }
+
+            # Extract drive letter part (e.g., "C:" or "C:\")
+            drive_match = re.match(r"^[A-Za-z]:[/\\]?", file_spec)
+            drive_part = drive_match.group(0) if drive_match else ""
+            remaining_spec = file_spec[len(drive_part) :]
+
+            # Split the remaining part to find format/encoding
+            if ":" in remaining_spec:
+                # Split from the right to handle colons in the path properly
+                parts = remaining_spec.rsplit(":", MAX_SPLITS)  # Split from right, max 2 splits
+
+                if len(parts) == 1:
+                    # No format/encoding specified: "path\file.txt"
+                    file_path = file_spec
+                    file_format = "text"
+                    encoding = "utf-8"
+                elif len(parts) == PARTS_WITH_FORMAT:
+                    # One specifier: could be "path\file.txt:format"
+                    potential_format = parts[1]
+
+                    if potential_format.lower() in known_formats:
+                        # It's a format specifier
+                        file_path = drive_part + parts[0]
+                        file_format = potential_format
+                        encoding = "utf-8"
+                    else:
+                        # It's part of the path
+                        file_path = file_spec
+                        file_format = "text"
+                        encoding = "utf-8"
+                elif len(parts) == PARTS_WITH_FORMAT_AND_ENCODING:
+                    # Two specifiers: "path\file.txt:format:encoding"
+                    potential_format = parts[1]
+                    potential_encoding = parts[2]
+
+                    if (
+                        potential_format.lower() in known_formats
+                        and potential_encoding.lower() in common_encodings
+                    ):
+                        # Both are specifiers
+                        file_path = drive_part + parts[0]
+                        file_format = potential_format
+                        encoding = potential_encoding
+                    elif potential_format.lower() in known_formats:
+                        # Only format is valid, encoding might be part of path
+                        # Be conservative - assume format:encoding pattern if format is known
+                        file_path = drive_part + parts[0]
+                        file_format = potential_format
+                        encoding = potential_encoding  # Accept even if not in common list
+                    else:
+                        # Neither looks like specifiers, treat as all path
+                        file_path = file_spec
+                        file_format = "text"
+                        encoding = "utf-8"
+                else:
+                    # More than 2 splits - likely path with many colons
+                    file_path = file_spec
+                    file_format = "text"
+                    encoding = "utf-8"
+            else:
+                # No colons in remaining part - entire spec is path
+                file_path = file_spec
+                file_format = "text"
+                encoding = "utf-8"
+        else:
+            # Regular Unix-style path or relative path
+            parts = file_spec.split(":", MAX_SPLITS)
+            file_path = parts[0]
+            file_format = parts[1] if len(parts) > 1 else "text"
+            encoding = parts[PARTS_WITH_FORMAT] if len(parts) > PARTS_WITH_FORMAT else "utf-8"
+
+        return file_path, file_format, encoding
 
     def _process_value_prefix(self, value_string: str) -> Any:
         """
