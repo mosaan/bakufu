@@ -1,4 +1,4 @@
-name: "Hello World - 最初のワークフロー"
+name: "Hello-World"
 description: "bakufuの基本的な使用方法を学ぶためのシンプルな例"
 
 input_parameters:

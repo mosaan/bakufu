@@ -29,15 +29,7 @@ async def initialize_integrator(workflow_dir: Path, config_path: Path) -> None:
         integrator = create_mcp_integrator(workflow_dir=workflow_dir, config_path=config_path)
         await integrator.initialize()
         logger.info("MCP workflow integrator initialized")
-
-
-# Create FastMCP server instance
-mcp: FastMCP = FastMCP(
-    name="bakufu-mcp-server",
-    # description for the server.
-    # especially prefix treatment like "@file:" & "@value:" is important feature and we must explain it.
-    # these are handled by all dynamic tools.
-    instructions="""
+instructions="""
     This is the Bakufu MCP Server, which allows you to execute predefined workflows in Bakufu.
     All workflow tools (except `list_available_workflows`) require a JSON object as input.
     Each workflow has specific input parameters that must be provided.
@@ -99,8 +91,24 @@ mcp: FastMCP = FastMCP(
     ```
     
     Both syntaxes are supported and can be mixed within the same input. These prefixes enable dynamic content loading and structured data input, making workflows more flexible and reusable.
-    """,
+    """
+
+# Create FastMCP server instance
+mcp: FastMCP = FastMCP(
+    name="bakufu-mcp-server",
+    # description for the server.
+    # especially prefix treatment like "@file:" & "@value:" is important feature and we must explain it.
+    # these are handled by all dynamic tools.
+    instructions=instructions,
 )
+
+@mcp.tool
+async def get_input_specification_text_of_bakufu_tool_execution() -> str:
+    """
+    Prompt for input specification of a Bakufu tool execution.
+    YOU MUST EXECUTE THIS TOOL BEFORE ANY OTHER BAKUFU'S TOOLS.
+    """
+    return instructions
 
 
 @mcp.tool
