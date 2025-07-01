@@ -37,39 +37,37 @@ instructions = """
     
     ## Special Input Prefixes
     
-    The Bakufu MCP Server supports powerful prefix-based input processing for flexible data handling:
+    The Bakufu MCP Server supports powerful prefix-based input processing for flexible data handling.
+    if you want to change the input treatment, you can use the following prefixes in your input keys:
     
     ### @file: Prefix - File Content Loading
-    Syntax: `@file:<path>:<format>:<encoding>`
-    - **path** (required): File path (absolute or relative)
-    - **format** (optional): Data format - defaults to "text"
-    - **encoding** (optional): Character encoding - defaults to "utf-8"
+    Syntax: `{"@file:<key>": "<path>:<format>:<encoding>"}`
     
     Supported formats:
-    - `text` (default): Plain text content as string
+    - `json`: (default for `.json` files) JSON files parsed to objects
+    - `yaml`/`yml`: (default for `.yaml`/`.yml` files) YAML files parsed to objects
+    - `csv`: (default for `.csv` files) CSV files as array of dictionaries
+    - `tsv`: (default for `.tsv` files) TSV files as array of dictionaries
+    - `text`: (default for all other unknown file extensions) Plain text content as string
     - `lines`: Text content as array of lines
-    - `json`: JSON files parsed to objects
-    - `yaml`/`yml`: YAML files parsed to objects
-    - `csv`: CSV files as array of dictionaries
-    - `tsv`: TSV files as array of dictionaries
     
     Examples:
-    - `"@file:document": "/path/to/file.txt"` (plain text, UTF-8)
-    - `"@file:config": "/data/config.json:json"` (JSON format)
-    - `"@file:logs": "/logs/app.log:lines"` (text lines array)
-    - `"@file:data": "/data/report.csv:csv"` (CSV as object array)
-    - `"@file:content": "/path/file.txt:text:shift_jis"` (specific encoding)
-    
+    - `{"@file:document": "/path/to/file.txt"}` (plain text, UTF-8)
+    - `{"@file:config": "/data/config.json:json"}` (JSON format)
+    - `{"@file:logs": "/logs/app.log:lines"}` (text lines array)
+    - `{"@file:data": "/data/report.csv:csv"}` (CSV as object array)
+    - `{"@file:content": "/path/file.txt:text:shift_jis"}` (specific encoding)
+
     ### Direct JSON Values
     You can pass JSON values directly without any special prefix.
     
     Examples:
-    - `"settings": {"key": "value", "count": 42}` (object)
-    - `"items": ["item1", "item2", "item3"]` (array)
-    - `"message": "simple string"` (string)
-    - `"count": 42` (number)
-    - `"enabled": true` (boolean)
-    
+    - `{"settings": {"key": "value", "count": 42}}` (object)
+    - `{"items": ["item1", "item2", "item3"]}` (array)
+    - `{"message": "simple string"}` (string)
+    - `{"count": 42}` (number)
+    - `{"enabled": true}` (boolean)
+
     ### Usage Examples
     
     **Syntax**:
