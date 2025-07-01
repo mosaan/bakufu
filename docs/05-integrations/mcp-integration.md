@@ -11,7 +11,7 @@ Model Context Protocol（MCP）は、AIアプリケーションが外部デー�
 - **動的ワークフロー登録**: 指定ディレクトリ内のワークフローファイル（.yml/.yaml）を自動検出・登録
 - **MCP Sampling Mode**: GitHub CopilotのLLMをMCP Sampling API経由で利用（APIキー不要）
 - **デュアルモード運用**: 従来のLLMプロバイダーとMCP Samplingの切り替え対応
-- **統合入力処理**: `@file:`と`@value:`プレフィックスによる柔軟な入力処理
+- **統合入力処理**: `@file:`プレフィックスによる柔軟なファイル入力処理と直接JSON値サポート
 - **自動パラメータ検証**: ワークフロー定義に基づく入力パラメータの型チェックと必須項目検証
 - **実行時統計**: AI使用量（API呼び出し回数、トークン数、コスト）とパフォーマンス情報
 - **包括的エラーハンドリング**: 詳細なエラーメッセージと実行ログ
@@ -208,21 +208,21 @@ MCP統合では、パラメータ値に特別なプレフィックスを使っ�
 @file:/path/to/file.txt:text:shift_jis     # Shift_JISテキスト
 ```
 
-### `@value:` プレフィックス
-JSON文字列を解析してオブジェクトに変換します。
+### 直接JSON値
+JSON値は特別なプレフィックスなしで直接渡すことができます。
 
 #### 書式
 ```
-@value:JSON文字列
+任意のJSON値
 ```
 
 #### 例
 ```
-@value:{"key": "value", "number": 42}      # オブジェクト
-@value:["item1", "item2", "item3"]         # 配列
-@value:"simple string"                     # 文字列
-@value:42                                  # 数値
-@value:true                                # 真偽値
+{"key": "value", "number": 42}           # オブジェクト
+["item1", "item2", "item3"]              # 配列
+"simple string"                          # 文字列
+42                                       # 数値
+true                                     # 真偽値
 ```
 
 ### 使用例
@@ -245,11 +245,11 @@ MCPクライアント（Claude Desktop、MCP Inspectorなど）では、ツー�
 ```
 ※ `max_length`は自動的にデフォルト値（200）が適用されます
 
-**3. @value:プレフィックス（JSON値の解析）:**
+**3. 直接JSON値:**
 ```json
 {
-  "text": "@value:\"これは要約したい長いテキストです...\"",
-  "max_length": "@value:150"
+  "text": "これは要約したい長いテキストです...",
+  "max_length": 150
 }
 ```
 
@@ -257,16 +257,16 @@ MCPクライアント（Claude Desktop、MCP Inspectorなど）では、ツー�
 ```json
 {
   "text": "@file:/path/to/input.txt",
-  "max_length": "@value:200"
+  "max_length": 200
 }
 ```
 
-**5. 複合例（ファイル読み込み + JSON解析）:**
+**5. 複合例（ファイル読み込み + 直接値）:**
 ```json
 {
   "theme": "@file:/path/to/theme.json:json",
-  "target_audience": "@value:\"データサイエンティスト\"",
-  "word_count": "@value:1500"
+  "target_audience": "データサイエンティスト",
+  "word_count": 1500
 }
 ```
 

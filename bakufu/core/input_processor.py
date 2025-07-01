@@ -24,9 +24,8 @@ class FileInputProcessor:
 
     # Constants for binary file detection
     BINARY_DETECTION_CHUNK_SIZE = 8192
-    MIN_PRINTABLE_CHAR = 32
-    MAX_PRINTABLE_CHAR = 126
-    TEXT_THRESHOLD = 0.7
+    CONTROL_CHAR_THRESHOLD = 0.05
+    PRINTABLE_CHAR_MIN = 32
 
     def __init__(self, max_file_size: int | None = None):
         """Initialize the file input processor"""
@@ -94,7 +93,6 @@ class FileInputProcessor:
         # Constants
         MAX_SPLITS = 2
         known_formats = {"text", "json", "yaml", "yml", "csv", "tsv", "lines"}
-        common_encodings = {"utf-8", "utf-16", "ascii", "latin-1", "cp1252", "shift_jis", "euc-jp"}
 
         # Extract drive letter part (e.g., "C:" or "C:\")
         drive_match = re.match(r"^[A-Za-z]:[/\\]?", path_spec)
@@ -107,9 +105,7 @@ class FileInputProcessor:
 
         # Split from the right to handle colons in the path properly
         parts = remaining_spec.rsplit(":", MAX_SPLITS)
-        return self._parse_windows_path_parts(
-            path_spec, drive_part, parts, known_formats, common_encodings
-        )
+        return self._parse_windows_path_parts(path_spec, drive_part, parts, known_formats)
 
     def _parse_windows_path_parts(
         self,
@@ -117,7 +113,6 @@ class FileInputProcessor:
         drive_part: str,
         parts: list[str],
         known_formats: set[str],
-        common_encodings: set[str],
     ) -> tuple[str, str, str]:
         """Parse Windows path parts to extract file path, format, and encoding."""
         # Constants for parts count
@@ -205,8 +200,8 @@ class FileInputProcessor:
                 "FILE_SIZE_EXCEEDED",
             )
 
-        # Check if file is binary
-        if self._is_binary_file(file_path):
+        # Check if file is text
+        if not self._is_text_file(file_path):
             raise BakufuError(
                 f"Binary files are not supported: '{file_path}'", "BINARY_FILE_NOT_SUPPORTED"
             )
@@ -248,32 +243,53 @@ class FileInputProcessor:
         # Additional security checks could be added here
         # For example, checking if path is within allowed directories
 
-    def _is_binary_file(self, file_path: str) -> bool:
-        """Check if a file is binary by reading a sample of bytes"""
+    def _is_text_file(self, file_path: str) -> bool:
+        """Check if a file is text by attempting UTF-8 decoding with fallback strategies"""
         try:
             with open(file_path, "rb") as f:
-                # Read first chunk to check for binary content
                 chunk = f.read(self.BINARY_DETECTION_CHUNK_SIZE)
                 if not chunk:
-                    return False  # Empty file is considered text
+                    return True  # Empty file is considered text
 
-                # Check for null bytes, which indicate binary content
-                if b"\x00" in chunk:
-                    return True
+            # Check for binary markers first (null bytes are strong indicators)
+            if self._contains_binary_markers(chunk):
+                return False
 
-                # Check for high percentage of non-text bytes
-                text_chars = sum(
-                    1
-                    for byte in chunk
-                    if self.MIN_PRINTABLE_CHAR <= byte <= self.MAX_PRINTABLE_CHAR
-                    or byte in (9, 10, 13)  # tab, newline, carriage return
-                )
+            # First, try UTF-8 decoding (most common for text files)
+            try:
+                chunk.decode("utf-8")
+                return True
+            except UnicodeDecodeError:
+                pass
 
-                # Return True if less than threshold are text characters
-                return len(chunk) > 0 and (text_chars / len(chunk)) < self.TEXT_THRESHOLD
+            # Fallback: try Latin-1 (can decode any byte sequence)
+            try:
+                chunk.decode("latin-1")
+                # If Latin-1 succeeds, it's likely text (binary markers already checked)
+                return True
+            except UnicodeDecodeError:
+                return False
+
         except Exception:
             # If we can't read the file, assume it might be binary
+            return False
+
+    def _contains_binary_markers(self, chunk: bytes) -> bool:
+        """Check for common binary file markers"""
+        # Null bytes are strong indicators of binary content
+        if b"\x00" in chunk:
             return True
+
+        # Check for excessive control characters (excluding common ones)
+        control_chars = sum(
+            1
+            for byte in chunk
+            if byte < self.PRINTABLE_CHAR_MIN
+            and byte not in (9, 10, 13)  # tab, newline, carriage return
+        )
+
+        # If more than threshold are control characters, likely binary
+        return len(chunk) > 0 and (control_chars / len(chunk)) > self.CONTROL_CHAR_THRESHOLD
 
     def _load_text_file(self, file_path: str, encoding: str) -> str:
         """Load a text file and return its content as a string"""

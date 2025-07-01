@@ -5,7 +5,7 @@ input_parameters:
   - name: "file_path"
     type: "string"
     required: true
-    description: "処理するファイルのパス（自動読み込みには@file:プレフィックスを使用）"
+    description: "処理するファイル内容（MCPファイル読み込みは@file:file_path: パス形式を使用）"
   - name: "operation"
     type: "string"
     required: false
@@ -34,27 +34,6 @@ steps:
       on_error: "continue"
       fallback_value: "unknown"
 
-  - id: "load_file_content"
-    type: "conditional"
-    condition: "{{ file_path.startswith('@file:') }}"
-    if_true:
-      - id: "use_mcp_file_loading"
-        type: "text_process"
-        method: "replace"
-        input: "{{ file_path }}"
-        replacements:
-          - find: ""
-            replace: ""
-        output_key: "content"
-    if_false:
-      - id: "treat_as_direct_content"
-        type: "text_process"
-        method: "replace"
-        input: "{{ file_path }}"
-        replacements:
-          - find: ""
-            replace: ""
-        output_key: "content"
 
   - id: "determine_processing_strategy"
     type: "ai_call"
@@ -87,7 +66,7 @@ steps:
       以下のファイル処理操作を実行してください：
 
       **ファイル内容:**
-      {{ load_file_content.content }}
+      {{ file_path }}
 
       **操作:** {{ operation }}
       **処理戦略:** {{ determine_processing_strategy.processing_strategy }}

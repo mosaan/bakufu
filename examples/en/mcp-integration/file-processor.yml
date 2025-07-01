@@ -5,7 +5,7 @@ input_parameters:
   - name: "file_path"
     type: "string"
     required: true
-    description: "Path to the file to process (supports @file: prefix for automatic loading)"
+    description: "File content to process (use @file:file_path: path format for MCP file loading)"
   - name: "operation"
     type: "string"
     required: false
@@ -34,27 +34,6 @@ steps:
       on_error: "continue"
       fallback_value: "unknown"
 
-  - id: "load_file_content"
-    type: "conditional"
-    condition: "{{ file_path.startswith('@file:') }}"
-    if_true:
-      - id: "use_mcp_file_loading"
-        type: "text_process"
-        method: "replace"
-        input: "{{ file_path }}"
-        replacements:
-          - find: ""
-            replace: ""
-        output_key: "content"
-    if_false:
-      - id: "treat_as_direct_content"
-        type: "text_process"
-        method: "replace"
-        input: "{{ file_path }}"
-        replacements:
-          - find: ""
-            replace: ""
-        output_key: "content"
 
   - id: "determine_processing_strategy"
     type: "ai_call"
@@ -87,7 +66,7 @@ steps:
       Execute the following file processing operation:
 
       **File Content:**
-      {{ load_file_content.content }}
+      {{ file_path }}
 
       **Operation:** {{ operation }}
       **Processing Strategy:** {{ determine_processing_strategy.processing_strategy }}

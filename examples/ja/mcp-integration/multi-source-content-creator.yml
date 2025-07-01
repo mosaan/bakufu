@@ -5,16 +5,16 @@ input_parameters:
   - name: "data_source"
     type: "string"
     required: true
-    description: "プライマリデータソース（JSON/YAMLファイルには@file:、直接JSONには@value:を使用）"
+    description: "プライマリデータソース（MCPでは@file:data_source: パスでファイル読み込み、または直接JSON値を使用）"
   - name: "requirements"
     type: "string"
     required: false
     default: "魅力的で有益なコンテンツを作成"
-    description: "コンテンツ要件またはガイドライン（テキストファイルには@file:を使用可能）"
+    description: "コンテンツ要件またはガイドライン（MCPファイル読み込みは@file:requirements: パスを使用）"
   - name: "output_format"
     type: "string"
     required: false
-    default: "@value:{\"type\": \"article\", \"style\": \"professional\", \"length\": \"medium\"}"
+    default: "{\"type\": \"article\", \"style\": \"professional\", \"length\": \"medium\"}"
     description: "出力形式仕様（type、style、lengthなどを含むJSONオブジェクト）"
   - name: "target_audience"
     type: "string"

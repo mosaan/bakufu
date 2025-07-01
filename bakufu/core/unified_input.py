@@ -3,7 +3,7 @@ Unified input processing for CLI and MCP Server.
 
 This module provides a consistent way to handle input parameters for both
 CLI execution and MCP server tool calls, supporting the unified input format
-specification with @value: and @file: prefixes.
+specification with @file: prefixes.
 """
 
 import json
@@ -20,7 +20,6 @@ class UnifiedInputProcessor:
     Supports the unified input format:
     - Direct values: key=value
     - File inputs: key=@file:path:format:encoding
-    - JSON values: key=@value:{"key": "value"}
     """
 
     def __init__(self) -> None:
@@ -79,9 +78,6 @@ class UnifiedInputProcessor:
         Supports:
         - key: value  (通常値)
         - @file:key: value  (ファイル指定)
-        - @value:key: value (JSON値指定)
-        - key: @file:...  (従来値プレフィックス)
-        - key: @value:... (従来値プレフィックス)
 
         Args:
             inputs: Raw input dictionary with potential prefixed keys or values
@@ -96,13 +92,6 @@ class UnifiedInputProcessor:
                 if key.startswith("@file:"):
                     real_key = key[len("@file:") :]
                     processed_inputs[real_key] = self._process_file_prefix(value)
-                elif key.startswith("@value:"):
-                    real_key = key[len("@value:") :]
-                    processed_inputs[real_key] = self._process_value_prefix(value)
-                elif isinstance(value, str) and value.startswith("@file:"):
-                    processed_inputs[key] = self._process_file_prefix(value[6:])
-                elif isinstance(value, str) and value.startswith("@value:"):
-                    processed_inputs[key] = self._process_value_prefix(value[7:])
                 else:
                     processed_inputs[key] = value
             else:
@@ -131,38 +120,12 @@ class UnifiedInputProcessor:
         if not isinstance(arguments, dict):
             raise ValueError(f"MCP input must be a JSON object (dict). Got: {type(arguments)}")
 
-        # 2. 各キーまたは値に@value:や@file:があるか検証。なければ警告のみ
-        for key, value in arguments.items():
-            if not (
-                (isinstance(key, str) and (key.startswith("@value:") or key.startswith("@file:")))
-                or (
-                    isinstance(value, str)
-                    and (value.startswith("@value:") or value.startswith("@file:"))
-                )
-            ):
-                logger.warning(
-                    f"MCP input key '{key}' should start with '@value:' or '@file:', or its value should start with '@value:' or '@file:' (spec violation)"
-                )
+        # 2. 各キーに@file:があるか検証。なければ警告のみ
+        for key, _value in arguments.items():
+            if not (isinstance(key, str) and key.startswith("@file:")):
+                logger.warning(f"MCP input key '{key}' should start with '@file:' (spec violation)")
 
         return self.process_unified_inputs(arguments)
-
-    def _process_prefixed_value(self, value: str) -> Any:
-        """
-        Process a prefixed value (@file:, @value:, etc.).
-
-        Args:
-            value: Prefixed value string
-
-        Returns:
-            Processed value
-        """
-        if value.startswith("@file:"):
-            return self._process_file_prefix(value[6:])  # Remove "@file:" prefix
-        elif value.startswith("@value:"):
-            return self._process_value_prefix(value[7:])  # Remove "@value:" prefix
-        else:
-            # Unknown prefix, return as-is
-            return value
 
     def _process_file_prefix(self, file_spec: str) -> Any:
         """
@@ -198,114 +161,97 @@ class UnifiedInputProcessor:
         """
         import re
 
-        # Constants for path parsing
-        PARTS_WITH_FORMAT = 2
-        PARTS_WITH_FORMAT_AND_ENCODING = 3
-        MAX_SPLITS = 2
-
         # Check if this looks like a Windows absolute path (C:, D:, etc.)
         windows_drive_pattern = r"^[A-Za-z]:[/\\]"
         if re.match(windows_drive_pattern, file_spec):
-            # For Windows absolute paths, we need to be more careful about colon parsing
-            # Strategy: Skip the drive letter colon and work on the rest
-
-            known_formats = {"text", "json", "yaml", "yml", "csv", "tsv", "lines"}
-            common_encodings = {
-                "utf-8",
-                "utf-16",
-                "ascii",
-                "latin-1",
-                "cp1252",
-                "shift_jis",
-                "euc-jp",
-            }
-
-            # Extract drive letter part (e.g., "C:" or "C:\")
-            drive_match = re.match(r"^[A-Za-z]:[/\\]?", file_spec)
-            drive_part = drive_match.group(0) if drive_match else ""
-            remaining_spec = file_spec[len(drive_part) :]
-
-            # Split the remaining part to find format/encoding
-            if ":" in remaining_spec:
-                # Split from the right to handle colons in the path properly
-                parts = remaining_spec.rsplit(":", MAX_SPLITS)  # Split from right, max 2 splits
-
-                if len(parts) == 1:
-                    # No format/encoding specified: "path\file.txt"
-                    file_path = file_spec
-                    file_format = "text"
-                    encoding = "utf-8"
-                elif len(parts) == PARTS_WITH_FORMAT:
-                    # One specifier: could be "path\file.txt:format"
-                    potential_format = parts[1]
-
-                    if potential_format.lower() in known_formats:
-                        # It's a format specifier
-                        file_path = drive_part + parts[0]
-                        file_format = potential_format
-                        encoding = "utf-8"
-                    else:
-                        # It's part of the path
-                        file_path = file_spec
-                        file_format = "text"
-                        encoding = "utf-8"
-                elif len(parts) == PARTS_WITH_FORMAT_AND_ENCODING:
-                    # Two specifiers: "path\file.txt:format:encoding"
-                    potential_format = parts[1]
-                    potential_encoding = parts[2]
-
-                    if (
-                        potential_format.lower() in known_formats
-                        and potential_encoding.lower() in common_encodings
-                    ):
-                        # Both are specifiers
-                        file_path = drive_part + parts[0]
-                        file_format = potential_format
-                        encoding = potential_encoding
-                    elif potential_format.lower() in known_formats:
-                        # Only format is valid, encoding might be part of path
-                        # Be conservative - assume format:encoding pattern if format is known
-                        file_path = drive_part + parts[0]
-                        file_format = potential_format
-                        encoding = potential_encoding  # Accept even if not in common list
-                    else:
-                        # Neither looks like specifiers, treat as all path
-                        file_path = file_spec
-                        file_format = "text"
-                        encoding = "utf-8"
-                else:
-                    # More than 2 splits - likely path with many colons
-                    file_path = file_spec
-                    file_format = "text"
-                    encoding = "utf-8"
-            else:
-                # No colons in remaining part - entire spec is path
-                file_path = file_spec
-                file_format = "text"
-                encoding = "utf-8"
+            return self._parse_windows_file_spec(file_spec)
         else:
-            # Regular Unix-style path or relative path
-            parts = file_spec.split(":", MAX_SPLITS)
-            file_path = parts[0]
-            file_format = parts[1] if len(parts) > 1 else "text"
-            encoding = parts[PARTS_WITH_FORMAT] if len(parts) > PARTS_WITH_FORMAT else "utf-8"
+            return self._parse_unix_file_spec(file_spec)
 
+    def _parse_windows_file_spec(self, file_spec: str) -> tuple[str, str, str]:
+        """Parse Windows absolute path file specification."""
+        import re
+
+        known_formats = {"text", "json", "yaml", "yml", "csv", "tsv", "lines"}
+        common_encodings = {"utf-8", "utf-16", "ascii", "latin-1", "cp1252", "shift_jis", "euc-jp"}
+
+        # Extract drive letter part (e.g., "C:" or "C:\")
+        drive_match = re.match(r"^[A-Za-z]:[/\\]?", file_spec)
+        drive_part = drive_match.group(0) if drive_match else ""
+        remaining_spec = file_spec[len(drive_part) :]
+
+        if ":" not in remaining_spec:
+            return file_spec, "text", "utf-8"
+
+        return self._parse_windows_spec_with_colons(
+            file_spec, drive_part, remaining_spec, known_formats, common_encodings
+        )
+
+    def _parse_windows_spec_with_colons(
+        self,
+        file_spec: str,
+        drive_part: str,
+        remaining_spec: str,
+        known_formats: set[str],
+        common_encodings: set[str],
+    ) -> tuple[str, str, str]:
+        """Parse Windows file spec that contains colons."""
+        MAX_SPLITS = 2
+        PARTS_WITH_FORMAT = 2
+        PARTS_WITH_FORMAT_AND_ENCODING = 3
+
+        parts = remaining_spec.rsplit(":", MAX_SPLITS)
+
+        if len(parts) == 1:
+            return file_spec, "text", "utf-8"
+        elif len(parts) == PARTS_WITH_FORMAT:
+            return self._handle_windows_two_parts(file_spec, drive_part, parts, known_formats)
+        elif len(parts) == PARTS_WITH_FORMAT_AND_ENCODING:
+            return self._handle_windows_three_parts(
+                file_spec, drive_part, parts, known_formats, common_encodings
+            )
+        else:
+            return file_spec, "text", "utf-8"
+
+    def _handle_windows_two_parts(
+        self, file_spec: str, drive_part: str, parts: list[str], known_formats: set[str]
+    ) -> tuple[str, str, str]:
+        """Handle Windows file spec with two parts (path:format)."""
+        potential_format = parts[1]
+        if potential_format.lower() in known_formats:
+            return drive_part + parts[0], potential_format, "utf-8"
+        else:
+            return file_spec, "text", "utf-8"
+
+    def _handle_windows_three_parts(
+        self,
+        file_spec: str,
+        drive_part: str,
+        parts: list[str],
+        known_formats: set[str],
+        common_encodings: set[str],
+    ) -> tuple[str, str, str]:
+        """Handle Windows file spec with three parts (path:format:encoding)."""
+        potential_format = parts[1]
+        potential_encoding = parts[2]
+
+        if (
+            potential_format.lower() in known_formats
+            and potential_encoding.lower() in common_encodings
+        ) or potential_format.lower() in known_formats:
+            return drive_part + parts[0], potential_format, potential_encoding
+        else:
+            return file_spec, "text", "utf-8"
+
+    def _parse_unix_file_spec(self, file_spec: str) -> tuple[str, str, str]:
+        """Parse Unix-style or relative path file specification."""
+        MAX_SPLITS = 2
+        MIN_PARTS_FOR_ENCODING = 3
+        parts = file_spec.split(":", MAX_SPLITS)
+        file_path = parts[0]
+        file_format = parts[1] if len(parts) > 1 else "text"
+        encoding = parts[2] if len(parts) >= MIN_PARTS_FOR_ENCODING else "utf-8"
         return file_path, file_format, encoding
-
-    def _process_value_prefix(self, value_string: str) -> Any:
-        """
-        Process @value: prefixed value.
-
-        Args:
-            value_string: JSON string to parse
-
-        Returns:
-            Parsed JSON value
-        """
-        try:
-            return json.loads(value_string)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in @value: prefix: {e}") from e
 
     def convert_cli_to_unified_format(
         self,
@@ -334,7 +280,7 @@ class UnifiedInputProcessor:
 
         # Convert JSON string input
         if input_data:
-            unified_inputs["_json_data"] = f"@value:{input_data}"
+            unified_inputs["_json_data"] = input_data
 
         # Convert file inputs
         if file_inputs:
@@ -358,9 +304,11 @@ class UnifiedInputProcessor:
         errors = {}
 
         for key, value in inputs.items():
-            if isinstance(value, str) and value.startswith("@"):
+            if isinstance(key, str) and key.startswith("@"):
                 try:
-                    self._process_prefixed_value(value)
+                    # Validate key prefix format
+                    if key.startswith("@file:"):
+                        self._process_file_prefix(str(value))
                 except Exception as e:
                     errors[key] = str(e)
 
@@ -427,7 +375,7 @@ class CLIInputMigrator:
             suggestions.append(f"--input data=@file:{input_file}:json")
 
         if input_data:
-            suggestions.append(f"--input data=@value:{input_data}")
+            suggestions.append(f"--input data={input_data}")
 
         if file_inputs:
             for file_input in file_inputs:

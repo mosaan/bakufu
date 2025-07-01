@@ -5,16 +5,16 @@ input_parameters:
   - name: "data_source"
     type: "string"
     required: true
-    description: "Primary data source (supports @file: for JSON/YAML files or @value: for direct JSON)"
+    description: "Primary data source (use @file:data_source: path for MCP file loading, or direct JSON values)"
   - name: "requirements"
     type: "string"
     required: false
     default: "Create engaging and informative content"
-    description: "Content requirements or guidelines (supports @file: for text files)"
+    description: "Content requirements or guidelines (use @file:requirements: path for MCP file loading)"
   - name: "output_format"
     type: "string"
     required: false
-    default: "@value:{\"type\": \"article\", \"style\": \"professional\", \"length\": \"medium\"}"
+    default: "{\"type\": \"article\", \"style\": \"professional\", \"length\": \"medium\"}"
     description: "Output format specification (JSON object with type, style, length, etc.)"
   - name: "target_audience"
     type: "string"

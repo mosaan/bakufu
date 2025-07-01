@@ -54,51 +54,41 @@ instructions = """
     - `tsv`: TSV files as array of dictionaries
     
     Examples:
-    - `@file:/path/to/document.txt` (plain text, UTF-8)
-    - `@file:/data/config.json:json` (JSON format)
-    - `@file:/logs/app.log:lines` (text lines array)
-    - `@file:/data/report.csv:csv` (CSV as object array)
-    - `@file:/path/file.txt:text:shift_jis` (specific encoding)
+    - `"@file:document": "/path/to/file.txt"` (plain text, UTF-8)
+    - `"@file:config": "/data/config.json:json"` (JSON format)
+    - `"@file:logs": "/logs/app.log:lines"` (text lines array)
+    - `"@file:data": "/data/report.csv:csv"` (CSV as object array)
+    - `"@file:content": "/path/file.txt:text:shift_jis"` (specific encoding)
     
-    ### @value: Prefix - JSON Parsing
-    Syntax: `@value:<JSON_STRING>`
-    Parses JSON strings into their corresponding data types.
+    ### Direct JSON Values
+    You can pass JSON values directly without any special prefix.
     
     Examples:
-    - `@value:{"key": "value", "count": 42}` (object)
-    - `@value:["item1", "item2", "item3"]` (array)
-    - `@value:"simple string"` (string)
-    - `@value:42` (number)
-    - `@value:true` (boolean)
+    - `"settings": {"key": "value", "count": 42}` (object)
+    - `"items": ["item1", "item2", "item3"]` (array)
+    - `"message": "simple string"` (string)
+    - `"count": 42` (number)
+    - `"enabled": true` (boolean)
     
     ### Usage Examples
     
-    **Value-based syntax** (prefix in value):
-    ```json
-    {
-        "document": "@file:/path/to/report.txt",
-        "settings": "@value:{\"max_length\": 200, \"format\": \"summary\"}",
-        "data": "@file:/data/input.json:json"
-    }
-    ```
-    
-    **Key-based syntax** (prefix in key):
+    **Syntax**:
     ```json
     {
         "@file:document": "/path/to/report.txt:text",
-        "@value:settings": "{\"max_length\": 200, \"format\": \"summary\"}",
+        "settings": {"max_length": 200, "format": "summary"},
         "@file:data": "/data/input.json:json"
     }
     ```
     
-    Both syntaxes are supported and can be mixed within the same input. These prefixes enable dynamic content loading and structured data input, making workflows more flexible and reusable.
+    This syntax enables dynamic content loading and structured data input, making workflows more flexible and reusable.
     """
 
 # Create FastMCP server instance
 mcp: FastMCP = FastMCP(
     name="bakufu-mcp-server",
     # description for the server.
-    # especially prefix treatment like "@file:" & "@value:" is important feature and we must explain it.
+    # especially prefix treatment like "@file:" is important feature and we must explain it.
     # these are handled by all dynamic tools.
     instructions=instructions,
 )
