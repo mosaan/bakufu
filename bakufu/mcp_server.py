@@ -9,7 +9,6 @@ import asyncio
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from fastmcp import Context, FastMCP
 
@@ -29,7 +28,9 @@ async def initialize_integrator(workflow_dir: Path, config_path: Path) -> None:
         integrator = create_mcp_integrator(workflow_dir=workflow_dir, config_path=config_path)
         await integrator.initialize()
         logger.info("MCP workflow integrator initialized")
-instructions="""
+
+
+instructions = """
     This is the Bakufu MCP Server, which allows you to execute predefined workflows in Bakufu.
     All workflow tools (except `list_available_workflows`) require a JSON object as input.
     Each workflow has specific input parameters that must be provided.
@@ -101,6 +102,7 @@ mcp: FastMCP = FastMCP(
     # these are handled by all dynamic tools.
     instructions=instructions,
 )
+
 
 @mcp.tool
 async def get_input_specification_text_of_bakufu_tool_execution() -> str:

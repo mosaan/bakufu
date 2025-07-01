@@ -56,14 +56,8 @@ class FileInputProcessor:
         path_spec = parts[1].strip()
 
         # Parse path specification with optional format and encoding
-        path_parts = path_spec.split(":")
-        file_path = path_parts[0]
-        file_format = (
-            path_parts[1]
-            if len(path_parts) >= self.MIN_PATH_PARTS_FOR_FORMAT
-            else self._detect_format(file_path)
-        )
-        encoding = path_parts[2] if len(path_parts) >= self.MIN_PATH_PARTS_FOR_ENCODING else "utf-8"
+        # Handle Windows absolute paths properly
+        file_path, file_format, encoding = self._parse_path_spec(path_spec)
 
         # Validate key
         if not key:
@@ -74,6 +68,97 @@ class FileInputProcessor:
         # Load and process the file
         file_data = self._load_file(file_path, file_format, encoding)
         return key, file_data
+
+    def _parse_path_spec(self, path_spec: str) -> tuple[str, str, str]:
+        """Parse path specification handling Windows absolute paths.
+
+        Args:
+            path_spec: Path specification (path:format:encoding)
+
+        Returns:
+            Tuple of (file_path, file_format, encoding)
+        """
+        import re
+
+        # Check if this looks like a Windows absolute path (C:, D:, etc.)
+        windows_drive_pattern = r"^[A-Za-z]:[/\\]"
+        if re.match(windows_drive_pattern, path_spec):
+            return self._parse_windows_path_spec(path_spec)
+        else:
+            return self._parse_unix_path_spec(path_spec)
+
+    def _parse_windows_path_spec(self, path_spec: str) -> tuple[str, str, str]:
+        """Parse Windows absolute path specification."""
+        import re
+
+        # Constants
+        MAX_SPLITS = 2
+        known_formats = {"text", "json", "yaml", "yml", "csv", "tsv", "lines"}
+        common_encodings = {"utf-8", "utf-16", "ascii", "latin-1", "cp1252", "shift_jis", "euc-jp"}
+
+        # Extract drive letter part (e.g., "C:" or "C:\")
+        drive_match = re.match(r"^[A-Za-z]:[/\\]?", path_spec)
+        drive_part = drive_match.group(0) if drive_match else ""
+        remaining_spec = path_spec[len(drive_part) :]
+
+        if ":" not in remaining_spec:
+            # No format/encoding specifiers - entire spec is path
+            return path_spec, self._detect_format(path_spec), "utf-8"
+
+        # Split from the right to handle colons in the path properly
+        parts = remaining_spec.rsplit(":", MAX_SPLITS)
+        return self._parse_windows_path_parts(
+            path_spec, drive_part, parts, known_formats, common_encodings
+        )
+
+    def _parse_windows_path_parts(
+        self,
+        path_spec: str,
+        drive_part: str,
+        parts: list[str],
+        known_formats: set[str],
+        common_encodings: set[str],
+    ) -> tuple[str, str, str]:
+        """Parse Windows path parts to extract file path, format, and encoding."""
+        # Constants for parts count
+        PARTS_COUNT_NO_SPEC = 1
+        PARTS_COUNT_WITH_FORMAT = 2
+        PARTS_COUNT_WITH_FORMAT_AND_ENCODING = 3
+
+        if len(parts) == PARTS_COUNT_NO_SPEC:
+            # No format/encoding specified
+            return path_spec, self._detect_format(path_spec), "utf-8"
+        elif len(parts) == PARTS_COUNT_WITH_FORMAT:
+            # One specifier: could be format
+            potential_format = parts[1]
+            if potential_format.lower() in known_formats:
+                return drive_part + parts[0], potential_format, "utf-8"
+            else:
+                # Part of path
+                return path_spec, self._detect_format(path_spec), "utf-8"
+        elif len(parts) == PARTS_COUNT_WITH_FORMAT_AND_ENCODING:
+            # Two specifiers: format:encoding
+            potential_format, potential_encoding = parts[1], parts[2]
+            if potential_format.lower() in known_formats:
+                return drive_part + parts[0], potential_format, potential_encoding
+            else:
+                # Neither looks like specifiers
+                return path_spec, self._detect_format(path_spec), "utf-8"
+        else:
+            # More than 2 splits - likely path with many colons
+            return path_spec, self._detect_format(path_spec), "utf-8"
+
+    def _parse_unix_path_spec(self, path_spec: str) -> tuple[str, str, str]:
+        """Parse Unix/relative path specification."""
+        MAX_SPLITS = 2
+        PARTS_WITH_FORMAT = 2
+
+        parts = path_spec.split(":", MAX_SPLITS)
+        file_path = parts[0]
+        file_format = parts[1] if len(parts) > 1 else self._detect_format(file_path)
+        encoding = parts[PARTS_WITH_FORMAT] if len(parts) > PARTS_WITH_FORMAT else "utf-8"
+
+        return file_path, file_format, encoding
 
     def _detect_format(self, file_path: str) -> str:
         """Detect file format based on file extension"""
@@ -183,7 +268,6 @@ class FileInputProcessor:
                     if self.MIN_PRINTABLE_CHAR <= byte <= self.MAX_PRINTABLE_CHAR
                     or byte in (9, 10, 13)  # tab, newline, carriage return
                 )
-                return False
 
                 # Return True if less than threshold are text characters
                 return len(chunk) > 0 and (text_chars / len(chunk)) < self.TEXT_THRESHOLD
