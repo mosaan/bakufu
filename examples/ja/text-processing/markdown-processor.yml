@@ -1,4 +1,4 @@
-name: "Markdown 文書処理"
+name: "Markdown Document Processor"
 description: "Markdownドキュメントを分析し、セクションごとに要約を生成するワークフロー"
 
 input_parameters:

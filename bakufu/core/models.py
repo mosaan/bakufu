@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal, Union
 
+from fastmcp import Context
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 from .base_types import WorkflowStep
@@ -273,6 +274,33 @@ class Workflow(BaseModel):
     description: str | None = None
     version: str = "1.0"
 
+    @field_validator("name")
+    @classmethod
+    def validate_name_format(cls, v: str) -> str:
+        """Validate workflow name to prevent MCP tool name conflicts"""
+        import string
+
+        if not v:
+            raise ValueError("Workflow name cannot be empty")
+
+        # Check for leading or trailing spaces
+        if v != v.strip():
+            raise ValueError("Workflow name cannot have leading or trailing spaces")
+
+        # Check if name contains only ASCII letters, numbers, hyphens, underscores, and spaces
+        # This prevents Japanese characters while allowing existing naming patterns
+        allowed_chars = string.ascii_letters + string.digits + "-_ "
+        if not all(c in allowed_chars for c in v):
+            raise ValueError(
+                "Workflow name must contain only ASCII letters, numbers, hyphens, underscores, and spaces"
+            )
+
+        # Must start with a letter to be a valid identifier
+        if not v[0].isalpha():
+            raise ValueError("Workflow name must start with a letter")
+
+        return v
+
     input_parameters: list[InputParameter] | None = Field(default_factory=list)
     steps: list[AnyWorkflowStep] = Field(..., min_length=1)
     output: OutputFormat | None = None
@@ -376,7 +404,9 @@ class ExecutionContext(BaseModel):
     sampling_mode: bool = Field(
         default=False, description="Use MCP sampling instead of LLM providers"
     )
-    mcp_context: Any = Field(default=None, description="FastMCP Context for sampling API")
+    mcp_context: Context | None = Field(
+        default=None, description="FastMCP Context for sampling API"
+    )
 
     # Template engine (not serialized)
     _template_engine: WorkflowTemplateEngine = PrivateAttr(default_factory=WorkflowTemplateEngine)

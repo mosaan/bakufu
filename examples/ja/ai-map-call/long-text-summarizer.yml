@@ -1,4 +1,4 @@
-name: "長文AI並列要約"
+name: "Long Text AI Parallel Summarizer"
 description: "長文を段落に分割し、各段落を並列でAI要約した後、全体要約を生成"
 version: "1.0"
 

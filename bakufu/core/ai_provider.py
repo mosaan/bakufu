@@ -8,6 +8,8 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 import litellm
+from fastmcp import Context
+from mcp.types import TextContent
 from pydantic import BaseModel, Field
 
 # Suppress Pydantic warnings from LiteLLM usage
@@ -141,11 +143,16 @@ class AIProvider(BaseAIProvider):
         for attempt in range(self.config.max_retries + 1):
             try:
                 response = litellm.completion(**params)
+                # if not isinstance(response, TextContent):
+                #     raise AIProviderError(
+                #         "Response is not text content. Check your provider configuration.",
+                #         self.config.provider,
+                #     )
 
                 # Calculate cost using LiteLLM's built-in function
                 cost = None
                 try:
-                    from litellm import completion_cost
+                    from litellm.cost_calculator import completion_cost
 
                     cost = completion_cost(completion_response=response)
                     cost = float(cost) if cost else None
@@ -156,7 +163,7 @@ class AIProvider(BaseAIProvider):
                 return AIResponse(
                     content=response.choices[0].message.content,
                     provider=self.config.provider,
-                    model=response.model,
+                    model=response.model if isinstance(response.model, str) else "unknown",
                     usage=response.usage.model_dump() if response.usage else None,
                     finish_reason=response.choices[0].finish_reason,
                     cost_usd=cost,
@@ -232,7 +239,7 @@ class AIProvider(BaseAIProvider):
 class MCPSamplingProvider(BaseAIProvider):
     """AI provider using MCP Sampling API"""
 
-    def __init__(self, mcp_context: Any, config: AIProviderConfig):
+    def __init__(self, mcp_context: Context, config: AIProviderConfig):
         """Initialize MCP Sampling provider with context and configuration"""
         super().__init__(config)
         self.mcp_context = mcp_context
@@ -250,7 +257,9 @@ class MCPSamplingProvider(BaseAIProvider):
             )
 
             return AIResponse(
-                content=response.text,
+                content=response.text
+                if isinstance(response, TextContent)
+                else "[WARNING] response is not text content. Check your MCP context configuration.",
                 provider="mcp_sampling",
                 model="client_llm",
                 usage=None,  # MCP sampling doesn't provide usage stats

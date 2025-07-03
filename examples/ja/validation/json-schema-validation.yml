@@ -1,4 +1,4 @@
-name: "JSON Schema検証の例"
+name: "JSON Schema Validation Example"
 description: "構造化AI出力のためのJSON Schema検証を実演"
 version: "1.0"
 

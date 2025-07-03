@@ -1,4 +1,4 @@
-name: "コレクションフィルター例"
+name: "Collection Filter Example"
 description: "コレクション操作を使用したデータフィルタリングのデモンストレーション"
 
 input_parameters:

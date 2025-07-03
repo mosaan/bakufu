@@ -1,4 +1,4 @@
-name: "文書解析器"
+name: "Document Analyzer"
 description: "柔軟な入力形式で文書を解析する、MCP統合向けに設計されたワークフロー"
 
 input_parameters:

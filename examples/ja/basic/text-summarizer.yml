@@ -1,4 +1,4 @@
-name: "text_summarizer"
+name: "Text Summarizer"
 description: "長いテキストを分かりやすく要約するワークフロー"
 
 input_parameters:

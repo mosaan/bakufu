@@ -1,4 +1,4 @@
-name: "条件分岐ワークフローのサンプル"
+name: "conditional_workflow_sample"
 description: "基本的なif-else条件分岐と複数条件分岐の使用例"
 version: "1.0"
 

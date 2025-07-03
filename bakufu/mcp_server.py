@@ -9,6 +9,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from fastmcp import Context, FastMCP
 
@@ -156,9 +157,8 @@ async def register_dynamic_workflow_tools() -> None:
         logger.info(f"Discovered {len(workflows)} workflows for dynamic tool registration")
 
         for workflow in workflows:
-            # Create a safe tool name from workflow name
-            tool_name = workflow.name.lower().replace(" ", "_").replace("-", "_")
-            tool_name = "execute_" + "".join(c for c in tool_name if c.isalnum() or c == "_")
+            # Create tool name from workflow name (convert hyphens to underscores for MCP compatibility)
+            tool_name = "execute_" + workflow.name.replace("-", "_")
 
             # Create dynamic tool function with closure over workflow info
             def create_workflow_executor(wf_name: str) -> Callable:
@@ -182,7 +182,12 @@ async def register_dynamic_workflow_tools() -> None:
                         )
 
                         if result.success:
-                            response = f"✅ Workflow '{wf_name}' completed successfully!\n\n{result.result}"
+                            # Format output according to workflow configuration
+                            formatted_result = await _format_mcp_output(
+                                result.result, wf_name, integrator, input
+                            )
+
+                            response = f"✅ Workflow '{wf_name}' completed successfully!\n\n{formatted_result}"
                             if result.execution_time:
                                 response += (
                                     f"\n\n⏱️ Execution time: {result.execution_time:.2f} seconds"
@@ -233,6 +238,47 @@ async def register_dynamic_workflow_tools() -> None:
 
     except Exception as e:
         logger.error(f"Error registering dynamic workflow tools: {e}")
+
+
+async def _format_mcp_output(
+    result: dict[str, Any] | str, workflow_name: str, integrator: Any, input_data: dict[str, Any]
+) -> str:
+    """
+    Format workflow execution result according to workflow's output configuration.
+
+    This function applies the same formatting logic as the CLI mode to ensure
+    consistent output formatting across different execution modes.
+    """
+    import json
+
+    # Get workflow definition to access output configuration
+    workflow_def = await integrator._get_workflow_definition(workflow_name)
+    if workflow_def is None:
+        # Fallback to simple string conversion if workflow not found
+        return str(result)
+
+    # Apply the same formatting logic as CLI _format_output function
+    if workflow_def.output and workflow_def.output.template and isinstance(result, dict):
+        # Use template engine to format output
+        try:
+            from bakufu.core.template_engine import WorkflowTemplateEngine
+
+            engine = WorkflowTemplateEngine()
+            context = {"steps": result, "input": input_data or {}}
+            return engine.render(workflow_def.output.template, context)
+        except Exception as e:
+            logger.error(f"Error rendering template for workflow {workflow_name}: {e}")
+            # Fallback to JSON formatting
+            return json.dumps(result, indent=2, ensure_ascii=False)
+    elif isinstance(result, dict) and len(result) == 1:
+        # Single-key dictionary: return just the value
+        return str(next(iter(result.values())))
+    elif isinstance(result, str):
+        # Already a string
+        return result
+    else:
+        # Default to JSON formatting
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 async def main_async() -> None:

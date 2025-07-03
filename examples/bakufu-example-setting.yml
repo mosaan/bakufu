@@ -12,7 +12,7 @@
 # alternatively, we can use gemma3 as the AI provider.
 # ===
 # gemma3 is a smaller model with 1 billion parameters.
-default_provider: ollama/gemma3:1b
+default_provider: ollama/gemma3:4b
 
 timeout_per_step: 60
 max_parallel_ai_calls: 3

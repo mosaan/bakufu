@@ -1,4 +1,4 @@
-name: "条件分岐エラーハンドリングのサンプル"
+name: "conditional_error_handling_sample"
 description: "条件分岐でのエラーハンドリング戦略の使用例"
 version: "1.0"
 

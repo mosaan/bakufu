@@ -6,7 +6,7 @@
 # For more information on supported providers, visit:
 # https://docs.litellm.ai/docs/providers
 #default_provider: gemini/gemini-2.0-flash
-default_provider: ollama/gemma3:1b
+default_provider: ollama/gemma3:4b
 timeout_per_step: 60
 max_parallel_ai_calls: 3
 max_parallel_text_processing: 5

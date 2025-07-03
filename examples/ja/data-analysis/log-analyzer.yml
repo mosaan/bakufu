@@ -1,4 +1,4 @@
-name: "ログ解析"
+name: "Log Analyzer"
 description: "アプリケーションログを解析し、エラーパターンやパフォーマンス情報を抽出するワークフロー"
 
 input_parameters:

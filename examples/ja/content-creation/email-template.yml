@@ -1,4 +1,4 @@
-name: "メール文面作成"
+name: "Email Template Generator"
 description: "目的に応じたビジネスメールの文面を自動生成するワークフロー"
 
 input_parameters:

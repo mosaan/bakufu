@@ -1,4 +1,4 @@
-name: "マルチソースコンテンツ作成器"
+name: "Multi-Source Content Creator"
 description: "MCPの統合入力処理を使用して複数のソースからデータを組み合わせてコンテンツを作成"
 
 input_parameters:

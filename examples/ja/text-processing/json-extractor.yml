@@ -1,4 +1,4 @@
-name: "JSON データ抽出・整形"
+name: "JSON Data Extractor"
 description: "テキストからJSONデータを抽出し、指定したフィールドを取り出すワークフロー"
 
 input_parameters:

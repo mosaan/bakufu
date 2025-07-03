@@ -1,4 +1,4 @@
-name: "JSON Data Extraction & Formatting"
+name: "JSON Data Extraction and Formatting"
 description: "A workflow that extracts JSON data from text and retrieves specified fields"
 
 input_parameters:

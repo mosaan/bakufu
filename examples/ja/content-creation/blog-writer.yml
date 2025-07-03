@@ -1,4 +1,4 @@
-name: "ブログ記事作成"
+name: "Blog Article Writer"
 description: "テーマに基づいてSEOを意識したブログ記事を生成するワークフロー"
 
 input_parameters:

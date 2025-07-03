@@ -1,4 +1,4 @@
-name: "インタラクティブファイル処理器"
+name: "Interactive File Processor"
 description: "様々な操作でファイルをインタラクティブに処理する、MCPツール使用に最適化されたワークフロー"
 
 input_parameters:

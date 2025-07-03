@@ -1,4 +1,4 @@
-name: "簡単データ分析"
+name: "Simple Data Analytics"
 description: "CSV形式のデータを分析し、基本的な統計情報とインサイトを提供するワークフロー"
 
 input_parameters:

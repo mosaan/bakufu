@@ -1,4 +1,4 @@
-name: "レビュー感情分析"
+name: "Review Sentiment Analysis"
 description: "商品レビューリストを並列で感情分析し、結果を集計"
 version: "1.0"
 
