@@ -34,6 +34,7 @@ dependencies = [
     "httpx>=0.25.0",
     "jsonschema>=4.0.0",
     "fastmcp>=2.8.1",
+    "aiofiles>=23.0.0",
 ]
 
 [project.optional-dependencies]
@@ -161,5 +162,6 @@ directory = "htmlcov"
 [dependency-groups]
 dev = [
     "build>=1.2.2.post1",
+    "types-aiofiles>=24.1.0.20250606",
     "types-jsonschema>=4.24.0.20250528",
 ]

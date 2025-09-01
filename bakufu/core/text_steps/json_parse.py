@@ -1,7 +1,9 @@
 """JSON parsing text processing step"""
 
+import json
 from typing import Any, Literal
 
+from ..exceptions import ErrorContext, StepExecutionError
 from .base import TextProcessStep
 
 
@@ -12,10 +14,6 @@ class JsonParseStep(TextProcessStep):
 
     async def process(self, input_data: str, step_id: str) -> Any:
         """Parse JSON from text"""
-        import json
-
-        from ..exceptions import ErrorContext, StepExecutionError
-
         try:
             return json.loads(input_data.strip())
         except json.JSONDecodeError as e:

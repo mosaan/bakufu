@@ -39,6 +39,9 @@ AIモデルを呼び出してテキスト生成を行います。
 - `parse_as_json`: JSON形式として解析
 - `extract_between_marker`: マーカー間のテキスト抽出
 - `regex_extract`: 正規表現による抽出
+- `csv_parse`: CSV形式として解析（カスタム区切り文字対応）
+- `tsv_parse`: TSV形式として解析
+- `yaml_parse`: YAML形式として解析
 
 ## 高度なステップタイプ
 

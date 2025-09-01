@@ -170,7 +170,29 @@ class WorkflowExecutionEngine:
                     ai_provider, rendered_prompt, step, context
                 )
             else:
-                response = await ai_provider.complete(rendered_prompt)
+                # Determine max_auto_retry_attempts (step-level override or global config)
+                max_auto_retry_attempts = (
+                    step.max_auto_retry_attempts
+                    if step.max_auto_retry_attempts is not None
+                    else context.config.max_auto_retry_attempts
+                )
+
+                # Prepare completion parameters
+                completion_params = {}
+
+                # Add max_tokens if specified in step
+                if step.max_tokens is not None:
+                    completion_params["max_tokens"] = step.max_tokens
+
+                # Add temperature if specified in step
+                if step.temperature is not None:
+                    completion_params["temperature"] = step.temperature
+
+                # Add auto-retry attempts if enabled
+                if max_auto_retry_attempts > 0:
+                    completion_params["max_auto_retry_attempts"] = max_auto_retry_attempts
+
+                response = await ai_provider.complete(rendered_prompt, **completion_params)
                 # Add usage information to context
                 context.add_step_usage(step.id, response.usage, response.cost_usd)
                 return response.content
@@ -218,7 +240,29 @@ class WorkflowExecutionEngine:
 
         for attempt in range(validation_config.max_retries + 1):
             try:
-                response = await ai_provider.complete(current_prompt)
+                # Determine max_auto_retry_attempts (step-level override or global config)
+                max_auto_retry_attempts = (
+                    step.max_auto_retry_attempts
+                    if step.max_auto_retry_attempts is not None
+                    else context.config.max_auto_retry_attempts
+                )
+
+                # Prepare completion parameters for validation
+                validation_params = {}
+
+                # Add max_tokens if specified in step
+                if step.max_tokens is not None:
+                    validation_params["max_tokens"] = step.max_tokens
+
+                # Add temperature if specified in step
+                if step.temperature is not None:
+                    validation_params["temperature"] = step.temperature
+
+                # Add auto-retry attempts if enabled
+                if max_auto_retry_attempts > 0:
+                    validation_params["max_auto_retry_attempts"] = max_auto_retry_attempts
+
+                response = await ai_provider.complete(current_prompt, **validation_params)
 
                 # Add usage information to context
                 context.add_step_usage(step.id, response.usage, response.cost_usd)

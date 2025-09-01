@@ -22,6 +22,7 @@ from .text_steps import (
     ArrayFilterStep,
     ArraySortStep,
     ArrayTransformStep,
+    CsvParseStep,
     ExtractBetweenMarkerStep,
     FixedSplitStep,
     JsonParseStep,
@@ -31,6 +32,8 @@ from .text_steps import (
     ReplaceStep,
     SelectItemStep,
     SplitStep,
+    TsvParseStep,
+    YamlParseStep,
 )
 
 
@@ -146,6 +149,9 @@ class WorkflowLoader:
             "regex_extract": RegexExtractStep,
             "replace": ReplaceStep,
             "json_parse": JsonParseStep,
+            "csv_parse": CsvParseStep,
+            "tsv_parse": TsvParseStep,
+            "yaml_parse": YamlParseStep,
             "markdown_split": MarkdownSplitStep,
             "fixed_split": FixedSplitStep,
             "array_filter": ArrayFilterStep,

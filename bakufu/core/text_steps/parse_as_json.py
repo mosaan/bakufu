@@ -19,23 +19,10 @@ class ParseAsJsonStep(TextProcessStep):
 
     def _parse_json_data(self, input_data: str, step_id: str) -> Any:
         """Parse JSON data with error handling"""
-        from ..exceptions import ErrorContext, StepExecutionError
+        from ..text_processing import JsonProcessor
 
-        try:
-            return json.loads(input_data.strip())
-        except json.JSONDecodeError as e:
-            raise StepExecutionError(
-                message=f"Invalid JSON format: {e}",
-                step_id=step_id,
-                context=ErrorContext(step_id=step_id, function_name="ParseAsJsonStep.process"),
-                original_error=e,
-                suggestions=[
-                    "Check JSON syntax and quotes",
-                    "Verify JSON structure is valid",
-                    "Ensure all strings are properly quoted",
-                    f"Text preview: {input_data.strip()[:100]}...",
-                ],
-            ) from e
+        # Use unified JsonProcessor for consistent JSON parsing
+        return JsonProcessor.parse_json_string(input_data, step_id=step_id)
 
     def _validate_with_schema(
         self, parsed_data: Any, validation_result: dict[str, Any], step_id: str

@@ -5,6 +5,7 @@ from .array_filter import ArrayFilterStep
 from .array_sort import ArraySortStep
 from .array_transform import ArrayTransformStep
 from .base import TextProcessStep
+from .csv_parse import CsvParseStep, TsvParseStep
 from .extract_between_marker import ExtractBetweenMarkerStep
 from .fixed_split import FixedSplitStep
 from .json_parse import JsonParseStep
@@ -14,6 +15,7 @@ from .regex_extract import RegexExtractStep
 from .replace import ReplaceStep
 from .select_item import SelectItemStep
 from .split import SplitStep
+from .yaml_parse import YamlParseStep
 
 # Type alias for any text processing step
 AnyTextProcessStep = (
@@ -31,6 +33,9 @@ AnyTextProcessStep = (
     | ExtractBetweenMarkerStep
     | SelectItemStep
     | ParseAsJsonStep
+    | CsvParseStep
+    | TsvParseStep
+    | YamlParseStep
 )
 
 __all__ = [
@@ -39,6 +44,7 @@ __all__ = [
     "ArrayFilterStep",
     "ArraySortStep",
     "ArrayTransformStep",
+    "CsvParseStep",
     "ExtractBetweenMarkerStep",
     "FixedSplitStep",
     "JsonParseStep",
@@ -49,4 +55,6 @@ __all__ = [
     "SelectItemStep",
     "SplitStep",
     "TextProcessStep",
+    "TsvParseStep",
+    "YamlParseStep",
 ]

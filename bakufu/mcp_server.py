@@ -36,6 +36,23 @@ instructions = """
     All workflow tools (except `list_available_workflows`) require a JSON object as input.
     Each workflow has specific input parameters that must be provided.
     
+    ## Large Output Control
+    
+    The Bakufu MCP Server provides two methods to handle large workflow outputs:
+    
+    ### Method 1: Explicit File Output
+    For workflows that may produce large outputs, you can specify an output file path as a separate tool argument:
+    - input: {"param1": "value1", "param2": "value2"}
+    - output_file_path: "/path/to/output.txt"
+    
+    When provided, results will be saved to the specified file instead of being returned directly.
+    Note: output_file_path is a separate tool argument, independent of workflow input parameters.
+    
+    ### Method 2: Automatic File Output
+    Large outputs (>8,000 characters by default) are automatically saved to files.
+    The server will return a message indicating where the file was saved (as absolute path).
+    If automatic file saving fails, the full text output will be returned with a warning (no truncation).
+    
     ## Special Input Prefixes
     
     The Bakufu MCP Server supports powerful prefix-based input processing for flexible data handling.
@@ -71,7 +88,7 @@ instructions = """
 
     ### Usage Examples
     
-    **Syntax**:
+    **Basic Usage**:
     ```json
     {
         "@file:document": "/path/to/report.txt:text",
@@ -80,7 +97,18 @@ instructions = """
     }
     ```
     
-    This syntax enables dynamic content loading and structured data input, making workflows more flexible and reusable.
+    **With File Output**:
+    ```json
+    {
+        "@file:document": "/path/to/report.txt:text",
+        "settings": {"max_length": 200, "format": "summary"}
+    }
+    
+    And if you want to save large output to a file, use the separate output_file_path parameter:
+    - output_file_path: "/path/to/results.txt"
+    ```
+    
+    This syntax enables dynamic content loading, structured data input, and flexible output management, making workflows more powerful and scalable.
     """
 
 # Create FastMCP server instance
@@ -162,7 +190,9 @@ async def register_dynamic_workflow_tools() -> None:
 
             # Create dynamic tool function with closure over workflow info
             def create_workflow_executor(wf_name: str) -> Callable:
-                async def execute_workflow(input: dict, ctx: Context) -> str:
+                async def execute_workflow(
+                    input: dict, output_file_path: str | None = None, *, ctx: Context
+                ) -> str:
                     """Execute a specific workflow with provided parameters."""
                     global integrator
                     if integrator is None:
@@ -177,6 +207,7 @@ async def register_dynamic_workflow_tools() -> None:
                         result = await integrator.execute_workflow(
                             workflow_name=wf_name,
                             input_arguments=input,
+                            output_file_path=output_file_path,
                             mcp_context=ctx if sampling_mode else None,
                             sampling_mode=sampling_mode,
                         )
@@ -215,7 +246,10 @@ async def register_dynamic_workflow_tools() -> None:
                 tool_description += f"\n\n{workflow.description}"
 
             # Add input format information to description
-            tool_description += "\n\nInput: JSON object with the following parameters:"
+            tool_description += "\n\nParameters:"
+            tool_description += (
+                "\n\n1. input (object): JSON object with workflow-specific parameters:"
+            )
             if workflow.input_parameters:
                 for param in workflow.input_parameters:
                     required_text = " (required)" if param.required else " (optional)"
@@ -223,12 +257,16 @@ async def register_dynamic_workflow_tools() -> None:
                         f" [default: {param.default}]" if param.default is not None else ""
                     )
                     tool_description += (
-                        f"\n- {param.name} ({param.type}){required_text}{default_text}"
+                        f"\n   - {param.name} ({param.type}){required_text}{default_text}"
                     )
                     if param.description:
                         tool_description += f": {param.description}"
             else:
-                tool_description += "\n- No parameters required (empty object: {})"
+                tool_description += (
+                    "\n   - No workflow-specific parameters required (empty object: {})"
+                )
+
+            tool_description += "\n\n2. output_file_path (string, optional): File path to save large outputs. When provided, results will be saved to this file instead of being returned directly. Useful for workflows that generate large outputs."
 
             tool_func.__doc__ = tool_description
 

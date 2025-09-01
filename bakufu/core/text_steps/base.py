@@ -26,6 +26,9 @@ class TextProcessStep(WorkflowStep, ABC):
         "extract_between_marker",
         "select_item",
         "parse_as_json",
+        "csv_parse",
+        "tsv_parse",
+        "yaml_parse",
     ]
     input: str = Field(..., description="Input text with template syntax")
 

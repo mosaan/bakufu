@@ -8,6 +8,7 @@ MCP tool calls and workflow executions.
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +116,7 @@ class MCPWorkflowIntegrator:
         self,
         workflow_name: str,
         input_arguments: dict[str, Any],
+        output_file_path: str | None = None,
         mcp_context: Any = None,
         sampling_mode: bool = False,
     ) -> WorkflowExecutionResult:
@@ -124,6 +126,7 @@ class MCPWorkflowIntegrator:
         Args:
             workflow_name: Name of the workflow to execute
             input_arguments: Input arguments for the workflow
+            output_file_path: Optional file path to save large outputs (tool-level parameter)
             mcp_context: MCP Context for sampling API (optional)
             sampling_mode: Whether to use MCP sampling instead of LLM providers
 
@@ -157,6 +160,23 @@ class MCPWorkflowIntegrator:
             # Apply default values for missing optional parameters
             processed_inputs = self._apply_default_values(workflow_def, processed_inputs)
 
+            # Method 1: Check if workflow has large output control enabled
+            requires_file_output = (
+                workflow_def.output
+                and workflow_def.output.large_output_control
+                and output_file_path is None
+            )
+
+            if requires_file_output:
+                return WorkflowExecutionResult(
+                    success=False,
+                    workflow_name=workflow_name,
+                    result=None,
+                    error_message="This workflow has large output control enabled. Please provide 'output_file_path' parameter.",
+                    usage_summary=None,
+                    execution_time=None,
+                )
+
             # Validate input parameters
             validation_result = self._validate_workflow_inputs(workflow_def, processed_inputs)
             if not validation_result["valid"]:
@@ -189,10 +209,18 @@ class MCPWorkflowIntegrator:
             # Get usage summary
             usage_summary = context.get_usage_summary()
 
+            # Handle output based on the three control methods
+            final_result = await self._handle_large_output(
+                result=result,
+                output_file_path=output_file_path,
+                workflow_name=workflow_name,
+                input_arguments=input_arguments,
+            )
+
             return WorkflowExecutionResult(
                 success=True,
                 workflow_name=workflow_name,
-                result=result,
+                result=final_result,
                 error_message=None,
                 usage_summary={
                     "total_api_calls": usage_summary.total_api_calls,
@@ -386,6 +414,86 @@ class MCPWorkflowIntegrator:
         }
 
         return type_mapping.get(param_type, "string")
+
+    async def _handle_large_output(
+        self,
+        result: Any,
+        output_file_path: str | None,
+        workflow_name: str,
+        input_arguments: dict[str, Any],
+    ) -> Any:
+        """
+        Handle large output using the three control methods:
+        1. Workflow definition method (explicit file output with output_file_path tool argument)
+        2. Global configuration method (automatic file output)
+        3. Cache-based method (cache ID return)
+        """
+        result_str = str(result)
+        result_size = len(result_str)
+
+        assert self._config is not None
+
+        # Method 1: Workflow definition method - explicit file output
+        if output_file_path is not None:
+            try:
+                await self._save_result_to_file(result_str, output_file_path)
+                absolute_path = Path(output_file_path).resolve()
+                return f"✅ Results saved to: {absolute_path}"
+            except Exception as e:
+                logger.error(f"Failed to save result to file {output_file_path}: {e}")
+                # Fall back to other methods
+
+        # Method 2: Global configuration method - automatic file output
+        if result_size > self._config.mcp_max_output_chars:
+            # Automatically save to file
+            output_dir = Path(self._config.mcp_auto_file_output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate unique filename
+            timestamp = int(time.time() * 1000)
+            filename = f"{workflow_name}_{timestamp}.txt"
+            output_path = output_dir / filename
+
+            try:
+                await self._save_result_to_file(result_str, str(output_path))
+                absolute_path = output_path.resolve()
+                logger.info(f"Auto-saved large output ({result_size} chars) to {absolute_path}")
+                return f"🔄 Large output detected ({result_size} characters). Results automatically saved to: {absolute_path}"
+            except Exception as e:
+                logger.error(f"Failed to auto-save result to file {output_path}: {e}")
+                # Fall back to full text output
+
+        # Final fallback - return full text output (no truncation)
+        if result_size > self._config.mcp_max_output_chars:
+            logger.warning(
+                f"Large output ({result_size} chars) returned as full text after file save failure"
+            )
+            return f"⚠️ Large result ({result_size} characters) returned as full text (file save failed):\n\n{result_str}"
+
+        # Normal case - return result as-is
+        return result
+
+    async def _save_result_to_file(self, content: str, file_path: str) -> None:
+        """Save content to a file asynchronously."""
+        import aiofiles
+
+        try:
+            # Ensure directory exists
+            path = Path(file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Write file asynchronously
+            async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
+                await f.write(content)
+
+        except ImportError:
+            # Fallback to synchronous file writing if aiofiles not available
+            path = Path(file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+        logger.info(f"Saved result to file: {file_path}")
 
 
 class MCPProgressHandler:

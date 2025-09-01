@@ -46,12 +46,19 @@ class BakufuConfig(BaseModel):
     timeout_per_step: int = Field(default=60, gt=0)
     max_parallel_ai_calls: int = Field(default=3, gt=0)
     max_parallel_text_processing: int = Field(default=5, gt=0)
+    max_auto_retry_attempts: int = Field(
+        default=10, ge=0, description="Maximum auto-retry attempts when AI response is truncated"
+    )
 
     provider_settings: dict[str, ProviderConfig] = Field(default_factory=dict)
 
     # Additional configuration options
     log_level: str = "INFO"
     cache_enabled: bool = True
+
+    # MCP Large Output Control Settings
+    mcp_max_output_chars: int = Field(default=8000, gt=0)
+    mcp_auto_file_output_dir: str = Field(default="./mcp_outputs")
 
     @field_validator("provider_settings", mode="before")
     @classmethod

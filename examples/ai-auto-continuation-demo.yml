@@ -1,0 +1,80 @@
+name: "AI Response Auto-Continuation Demo"
+description: "Demonstrates automatic continuation of truncated AI responses"
+
+input_schema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: "Topic for long content generation"
+      default: "The history and evolution of artificial intelligence"
+
+steps:
+  - id: "generate_long_content"
+    type: "ai_call"
+    prompt: |
+      Write a comprehensive, detailed essay about {{ topic }}. 
+      Include multiple sections covering:
+      1. Historical background and origins
+      2. Key technological breakthroughs
+      3. Major figures and contributors
+      4. Current applications and use cases
+      5. Future prospects and challenges
+      6. Ethical considerations and implications
+      
+      Write at least 2000 words with detailed explanations, examples, and analysis.
+    max_tokens: 20  # Very small to force truncation
+    temperature: 0.7
+    max_auto_retry_attempts: 10  # Override global setting for this step
+
+  - id: "generate_long_content_no_retry"
+    type: "ai_call"
+    prompt: |
+      Write a comprehensive, detailed essay about {{ topic }}.
+      Include multiple sections covering:
+      1. Historical background and origins
+      2. Key technological breakthroughs  
+      3. Major figures and contributors
+      4. Current applications and use cases
+      5. Future prospects and challenges
+      6. Ethical considerations and implications
+      
+      Write at least 2000 words with detailed explanations, examples, and analysis.
+    max_tokens: 20  # Very small for comparison
+    temperature: 0.7
+    max_auto_retry_attempts: 0  # Disable auto-retry for comparison
+
+output:
+  format: "text"
+  template: |
+    # Auto-Continuation Feature Demonstration
+    
+    ## Configuration Used:
+    - Topic: {{ topic }}
+    - Max tokens per call: 500
+    - Global max_auto_retry_attempts: (configured via bakufu.yml)
+    - Step-level override: 10 for first example, 0 for second
+    
+    ## Results Comparison:
+    
+    ### With Auto-Continuation (up to 10 retries):
+    **Length**: {{ steps.generate_long_content | length }} characters
+    **Content**: 
+    {{ steps.generate_long_content }}
+    
+    ---
+    
+    ### Without Auto-Continuation (0 retries):
+    **Length**: {{ steps.generate_long_content_no_retry | length }} characters  
+    **Content**:
+    {{ steps.generate_long_content_no_retry }}
+    
+    ---
+    
+    ## Analysis:
+    The auto-continuation feature automatically detects when an AI response is truncated 
+    (finish_reason != "stop") and continues generating content by creating a conversation 
+    context and asking the AI to continue from where it left off.
+    
+    This allows for generating longer, more complete content without manual intervention
+    while maintaining cost control through configurable retry limits.

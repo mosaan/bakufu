@@ -36,6 +36,10 @@ class BakufuError(Exception):
         self.suggestions = suggestions or []
         self.traceback_str = traceback.format_exc() if original_error else None
 
+    def __str__(self) -> str:
+        """String representation including error code"""
+        return f"{self.message} ({self.error_code})"
+
     def to_dict(self) -> dict[str, Any]:
         """Convert error to dictionary for JSON serialization"""
         return {

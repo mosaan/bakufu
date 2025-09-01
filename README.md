@@ -66,6 +66,7 @@ bakufu (瀑布, "great waterfall" in Japanese) is a powerful workflow automation
 - **Unified Input Processing** - Support for `@file:` and `@value:` prefixes in MCP tool parameters
 - **Client Compatibility** - Works with Claude Desktop, Cursor, GitHub Copilot, and other MCP-compatible applications
 - **Real-time Workflow Discovery** - Automatic detection and registration of new workflows
+- **Large Output Control** - Three sophisticated methods to handle large workflow outputs that could overwhelm MCP clients
 
 ## 🚀 Quick Start
 
@@ -110,6 +111,40 @@ bakufu validate --verbose my-workflow.yml
 see [docs](docs/README.md) for more details.
 
 ## 🔌 MCP Server Usage
+
+### Large Output Control
+
+When workflows generate extensive outputs (reports, analysis, large data transformations), bakufu provides three sophisticated methods to handle large outputs that could overwhelm MCP clients:
+
+#### Method 1: Explicit Workflow Control
+Set `large_output_control: true` in workflow definitions to always require file output:
+
+```yaml
+name: "document_analyzer"
+output:
+  format: "text"
+  large_output_control: true
+  template: "{{ steps.analysis }}"
+```
+
+Usage:
+- input: `{"document": "Large document..."}`
+- output_file_path: `"/path/to/results.txt"`
+
+Response: `"✅ Results saved to: /absolute/path/to/results.txt"`
+
+#### Method 2: Automatic File Output
+Configure global thresholds in `bakufu.yml` for automatic handling:
+
+```yaml
+mcp_max_output_chars: 8000
+mcp_auto_file_output_dir: "./mcp_outputs"
+```
+
+Large outputs are automatically saved with response: 
+`"🔄 Large output detected (75,432 characters). Results automatically saved to: /absolute/path/to/mcp_outputs/workflow_1640995200000.txt"`
+
+If automatic file saving fails, the full text output will be returned with a warning message (no truncation).
 
 ### GitHub Copilot Integration
 

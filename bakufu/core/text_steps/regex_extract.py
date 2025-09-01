@@ -27,6 +27,7 @@ class RegexExtractStep(TextProcessStep):
         import re
 
         from ..exceptions import ErrorContext, StepExecutionError
+        from ..text_processing import TextExtractor
 
         if not self.pattern:
             raise StepExecutionError(
@@ -49,7 +50,7 @@ class RegexExtractStep(TextProcessStep):
                 flag_value |= flag_map[flag]
 
         try:
-            matches = re.findall(self.pattern, input_data, flag_value)
+            matches = TextExtractor.extract_by_regex(input_data, self.pattern, flags=flag_value)
 
             if self.output_format == "array":
                 return matches

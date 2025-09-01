@@ -34,6 +34,9 @@ class AICallStep(WorkflowStep):
     model: str | None = Field(default=None, description="Override default model")
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     max_tokens: int | None = Field(default=None, gt=0)
+    max_auto_retry_attempts: int | None = Field(
+        default=None, ge=0, description="Override global max_auto_retry_attempts for this step"
+    )
     ai_params: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional AI provider parameters (e.g., response_format, top_p, presence_penalty)",
@@ -266,6 +269,12 @@ class OutputFormat(BaseModel):
     format: Literal["text", "json", "yaml"] = "text"
     template: str | None = None
 
+    # Large output control settings
+    large_output_control: bool = Field(
+        default=False,
+        description="Enable large output control - requires output_file_path parameter when enabled",
+    )
+
 
 class Workflow(BaseModel):
     """Complete workflow definition"""
@@ -321,8 +330,21 @@ class WorkflowConfig(BaseModel):
     max_parallel_ai_calls: int = Field(default=3, gt=0)
     max_parallel_text_processing: int = Field(default=5, gt=0)
     timeout_per_step: int = Field(default=60, gt=0)
+    max_auto_retry_attempts: int = Field(
+        default=10, ge=0, description="Global max auto-retry attempts for AI responses"
+    )
 
     provider_settings: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    # MCP Large Output Control Settings
+    mcp_max_output_chars: int = Field(
+        default=8000,
+        gt=0,
+        description="Maximum characters in MCP output before switching to file output",
+    )
+    mcp_auto_file_output_dir: str = Field(
+        default="./mcp_outputs", description="Directory for automatic file outputs from MCP server"
+    )
 
     @classmethod
     def from_bakufu_config(cls, bakufu_config: Any) -> "WorkflowConfig":
@@ -341,7 +363,10 @@ class WorkflowConfig(BaseModel):
             max_parallel_ai_calls=bakufu_config.max_parallel_ai_calls,
             max_parallel_text_processing=bakufu_config.max_parallel_text_processing,
             timeout_per_step=bakufu_config.timeout_per_step,
+            max_auto_retry_attempts=bakufu_config.max_auto_retry_attempts,
             provider_settings=provider_settings,
+            mcp_max_output_chars=bakufu_config.mcp_max_output_chars,
+            mcp_auto_file_output_dir=bakufu_config.mcp_auto_file_output_dir,
         )
 
 

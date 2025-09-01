@@ -1,0 +1,164 @@
+# Advanced CSV Processing Example
+#
+# This example demonstrates advanced CSV processing capabilities
+# including custom delimiters, data transformation, and analysis
+
+name: advanced_csv_processing
+description: Advanced CSV data processing and analysis workflow
+
+inputs:
+  # Sales data with semicolon delimiter
+  sales_data: |
+    region;product;sales_rep;quantity;unit_price;sale_date
+    North;Laptop;John Smith;5;1299.99;2024-01-15
+    South;Tablet;Mary Johnson;3;599.99;2024-01-16
+    East;Phone;David Wilson;8;899.99;2024-01-17
+    West;Laptop;Sarah Brown;2;1299.99;2024-01-18
+    North;Phone;John Smith;6;899.99;2024-01-19
+    South;Laptop;Mary Johnson;4;1299.99;2024-01-20
+
+  # Customer data with comma delimiter
+  customer_data: |
+    customer_id,name,email,region,signup_date
+    C001,Alice Johnson,alice@example.com,North,2023-06-15
+    C002,Bob Smith,bob@example.com,South,2023-07-20
+    C003,Carol Williams,carol@example.com,East,2023-08-10
+    C004,David Brown,david@example.com,West,2023-09-05
+
+steps:
+  # Step 1: Parse sales data with semicolon delimiter
+  - id: parse_sales
+    type: text_process
+    method: csv_parse
+    delimiter: ";"
+    input: "{{ inputs.sales_data }}"
+
+  # Step 2: Parse customer data with default comma delimiter
+  - id: parse_customers
+    type: text_process
+    method: csv_parse
+    input: "{{ inputs.customer_data }}"
+
+  # Step 3: Transform sales data to add calculated fields
+  - id: enrich_sales_data
+    type: text_process
+    method: array_transform
+    input: "{{ steps.parse_sales.output }}"
+    transform_expression: |
+      {
+        "region": item.region,
+        "product": item.product,
+        "sales_rep": item.sales_rep,
+        "quantity": item.quantity|int,
+        "unit_price": item.unit_price|float,
+        "total_amount": (item.quantity|int * item.unit_price|float)|round(2),
+        "sale_date": item.sale_date,
+        "month": item.sale_date[:7]
+      }
+
+  # Step 4: Calculate regional total sales
+  - id: regional_total_sales
+    type: text_process
+    method: array_aggregate
+    input: "{{ steps.enrich_sales_data.output }}"
+    group_by: "region"
+    aggregate_operation: "sum"
+
+  # Step 5: Calculate regional transaction count
+  - id: regional_transaction_count
+    type: text_process
+    method: array_aggregate
+    input: "{{ steps.enrich_sales_data.output }}"
+    group_by: "region"
+    aggregate_operation: "count"
+
+  # Step 6: Calculate product total revenue
+  - id: product_total_revenue
+    type: text_process
+    method: array_aggregate
+    input: "{{ steps.enrich_sales_data.output }}"
+    group_by: "product"
+    aggregate_operation: "sum"
+
+  # Step 7: Calculate sales rep total sales
+  - id: sales_rep_total_sales
+    type: text_process
+    method: array_aggregate
+    input: "{{ steps.enrich_sales_data.output }}"
+    group_by: "sales_rep"
+    aggregate_operation: "sum"
+
+  # Step 8: Sort sales reps by performance
+  - id: top_sales_reps
+    type: text_process
+    method: array_sort
+    input: "{{ steps.sales_rep_total_sales.output }}"
+    sort_by: "sum"
+    reverse: true
+
+  # Step 9: Filter high-value transactions
+  - id: high_value_sales
+    type: text_process
+    method: array_filter
+    input: "{{ steps.enrich_sales_data.output }}"
+    condition: "item.total_amount > 2000"
+
+  # Step 10: Generate sales analysis report
+  - id: sales_analysis
+    type: ai_call
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Analyze this sales data and provide insights:
+      
+      ## Regional Performance
+      Total Sales by Region: {{ steps.regional_total_sales.output | tojson }}
+      Transaction Count by Region: {{ steps.regional_transaction_count.output | tojson }}
+      
+      ## Product Performance
+      Total Revenue by Product: {{ steps.product_total_revenue.output | tojson }}
+      
+      ## Sales Representative Performance
+      {{ steps.top_sales_reps.output | tojson }}
+      
+      ## High-Value Transactions
+      {{ steps.high_value_sales.output | tojson }}
+      
+      ## Customer Base
+      Total customers: {{ steps.parse_customers.output | length }}
+      
+      Please provide:
+      1. Key performance insights
+      2. Regional trends analysis
+      3. Product recommendations
+      4. Sales team performance observations
+      5. Actionable business recommendations
+      
+      Format as a professional business report in markdown.
+
+  # Step 11: Create executive summary
+  - id: executive_summary
+    type: ai_call
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Create a concise executive summary based on this sales analysis:
+      {{ steps.sales_analysis.output }}
+      
+      Focus on:
+      - Top 3 key findings
+      - Most important business metrics
+      - Primary recommendations
+      
+      Keep it under 200 words and format as markdown.
+
+outputs:
+  sales_data: "{{ steps.enrich_sales_data.output }}"
+  customer_data: "{{ steps.parse_customers.output }}"
+  regional_total_sales: "{{ steps.regional_total_sales.output }}"
+  regional_transaction_count: "{{ steps.regional_transaction_count.output }}"
+  product_total_revenue: "{{ steps.product_total_revenue.output }}"
+  top_sales_reps: "{{ steps.top_sales_reps.output }}"
+  high_value_sales: "{{ steps.high_value_sales.output }}"
+  detailed_analysis: "{{ steps.sales_analysis.output }}"
+  executive_summary: "{{ steps.executive_summary.output }}"

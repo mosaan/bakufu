@@ -1,0 +1,156 @@
+# Text Processing Integration Example
+#
+# This example demonstrates the new unified text processing features
+# including CSV, TSV, and YAML parsing steps that are now available
+# as part of the consolidated text processing system.
+
+name: text_processing_integration_demo
+description: Demonstrate new text processing features for CSV, TSV, and YAML parsing
+
+inputs:
+  # Sample CSV data
+  csv_data: |
+    name,age,city,occupation
+    John Doe,30,New York,Engineer
+    Jane Smith,25,San Francisco,Designer
+    Bob Johnson,35,Chicago,Manager
+    Alice Brown,28,Seattle,Developer
+
+  # Sample TSV data
+  tsv_data: |
+    product	price	category	stock
+    Laptop	1299.99	Electronics	15
+    Book	19.99	Education	50
+    Coffee	4.99	Food	100
+    Headphones	79.99	Electronics	25
+
+  # Sample YAML data
+  yaml_data: |
+    application:
+      name: MyApp
+      version: 1.2.3
+      config:
+        database:
+          host: localhost
+          port: 5432
+          name: myapp_db
+        features:
+          - authentication
+          - logging
+          - caching
+    deployment:
+      environment: production
+      replicas: 3
+
+steps:
+  # Step 1: Parse CSV data into structured format
+  - id: parse_csv
+    type: text_process
+    method: csv_parse
+    input: "{{ inputs.csv_data }}"
+
+  # Step 2: Parse TSV data with tab delimiter
+  - id: parse_tsv
+    type: text_process
+    method: tsv_parse
+    input: "{{ inputs.tsv_data }}"
+
+  # Step 3: Parse YAML configuration
+  - id: parse_yaml
+    type: text_process
+    method: yaml_parse
+    input: "{{ inputs.yaml_data }}"
+
+  # Step 4: Extract specific information from CSV data
+  - id: extract_engineers
+    type: text_process
+    method: array_filter
+    input: "{{ steps.parse_csv.output }}"
+    condition: "item.occupation == 'Engineer' or item.occupation == 'Developer'"
+
+  # Step 5: Transform TSV data to include total value
+  - id: calculate_inventory_value
+    type: text_process
+    method: array_transform
+    input: "{{ steps.parse_tsv.output }}"
+    transform_expression: |
+      {
+        "product": item.product,
+        "price": item.price|float,
+        "stock": item.stock|int,
+        "total_value": (item.price|float * item.stock|int)|round(2),
+        "category": item.category
+      }
+
+  # Step 6: Create summary from YAML config
+  - id: create_config_summary
+    type: ai_call
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Based on this application configuration:
+      {{ steps.parse_yaml.output | tojson }}
+      
+      Create a concise deployment summary including:
+      1. Application details
+      2. Database configuration
+      3. Enabled features
+      4. Deployment settings
+      
+      Format as markdown.
+
+  # Step 7: Count total products
+  - id: inventory_count
+    type: text_process
+    method: array_aggregate
+    input: "{{ steps.calculate_inventory_value.output }}"
+    aggregate_operation: "count"
+
+  # Step 8: Calculate total inventory value
+  - id: inventory_total_value
+    type: text_process
+    method: array_aggregate
+    input: "{{ steps.calculate_inventory_value.output }}"
+    aggregate_operation: "sum"
+
+  # Step 9: Generate final report
+  - id: generate_report
+    type: ai_call
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Create a comprehensive data processing report with the following sections:
+      
+      ## Personnel Data (from CSV)
+      Technical staff found:
+      {{ steps.extract_engineers.output | tojson }}
+      
+      ## Inventory Analysis (from TSV)
+      Summary statistics:
+      - Total products: {{ steps.inventory_count.output }}
+      - Total inventory value: ${{ steps.inventory_total_value.output }}
+      
+      Detailed inventory:
+      {{ steps.calculate_inventory_value.output | tojson }}
+      
+      ## Application Configuration (from YAML)
+      {{ steps.create_config_summary.output }}
+      
+      ## Data Processing Summary
+      Provide insights on:
+      1. Data quality observations
+      2. Key findings from each dataset
+      3. Recommendations for data management
+      
+      Format the entire report as professional markdown.
+
+outputs:
+  csv_parsed: "{{ steps.parse_csv.output }}"
+  tsv_parsed: "{{ steps.parse_tsv.output }}"
+  yaml_parsed: "{{ steps.parse_yaml.output }}"
+  technical_staff: "{{ steps.extract_engineers.output }}"
+  inventory_analysis: "{{ steps.calculate_inventory_value.output }}"
+  inventory_count: "{{ steps.inventory_count.output }}"
+  inventory_total_value: "{{ steps.inventory_total_value.output }}"
+  configuration_summary: "{{ steps.create_config_summary.output }}"
+  final_report: "{{ steps.generate_report.output }}"

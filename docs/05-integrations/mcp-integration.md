@@ -15,6 +15,7 @@ Model Context Protocol（MCP）は、AIアプリケーションが外部デー�
 - **自動パラメータ検証**: ワークフロー定義に基づく入力パラメータの型チェックと必須項目検証
 - **実行時統計**: AI使用量（API呼び出し回数、トークン数、コスト）とパフォーマンス情報
 - **包括的エラーハンドリング**: 詳細なエラーメッセージと実行ログ
+- **長大出力制御**: MCPクライアントのコンテキストウィンドウ飽和を防ぐ3つの制御方式
 
 ## セットアップ
 
@@ -152,6 +153,7 @@ MCPサーバー起動時に以下のツールが自動登録されます：
 - 先頭に`execute_`を付加
 
 例：`Hello World - First Workflow` → `execute_hello_world__first_workflow`
+
 
 #### 引数の仕様
 各ツールは、単一の`input`引数（JSON形式）を受け取ります：
@@ -359,6 +361,118 @@ Sampling Modeを使用してGitHub Copilot Chat内でbakufuワークフローを
    - VS CodeでGitHub Copilot拡張機能が有効か確認
    - `--sampling-mode`フラグがMCP設定に含まれているか確認
    - MCPクライアントの再起動を試行
+
+## 長大出力制御機能
+
+MCPクライアントで長大なワークフロー出力を扱う際の問題（コンテキストウィンドウ飽和、パフォーマンス低下）を解決するため、bakufuは2つの制御方式を提供します。
+
+### 制御方式1: ワークフロー定義での明示的設定
+
+ワークフロー定義に`large_output_control: true`を追加することで、`output_file_path`パラメータを必須にします：
+
+```yaml
+name: "comprehensive_document_analyzer"
+output:
+  format: "text"
+  large_output_control: true
+  template: |
+    # 分析結果
+    {{ steps.detailed_analysis }}
+```
+
+**実行時:**
+- input: `{"document": "@file:/path/to/large_document.pdf:text", "analysis_type": "comprehensive"}`
+- output_file_path: `"/reports/analysis_result.txt"`
+
+**応答:** `"✅ Results saved to: /absolute/path/to/reports/analysis_result.txt"`
+
+**用途:**
+- 大容量出力が想定されるワークフロー（レポート生成、データ分析）
+- 開発者が明示的にファイル出力を制御したい場合
+- 結果を永続化する必要があるワークフロー
+
+### 制御方式2: グローバル設定による自動対応
+
+`bakufu.yml`で閾値を設定し、出力サイズが閾値を超えた場合に自動的にファイル出力：
+
+```yaml
+# 長大出力制御の設定
+mcp_max_output_chars: 8000               # 8KB閾値
+mcp_auto_file_output_dir: "./mcp_outputs"
+mcp_cache_ttl_seconds: 3600              # 1時間
+mcp_cache_max_items: 100
+```
+
+**動作例:**
+通常のワークフロー実行で、出力が50,000文字を超えた場合：
+
+**応答:** `"🔄 Large output detected (75,432 characters). Results automatically saved to: /absolute/path/to/mcp_outputs/document_analyzer_1640995200000.txt"`
+
+**用途:**
+- 透明な大容量出力処理
+- 既存ワークフローの変更不要
+- 全ワークフロー共通の動作
+
+自動ファイル保存が失敗した場合、出力は切り捨てられることなく全文が返されます。
+
+### 設定オプション詳細
+
+```yaml
+# bakufu.yml での長大出力制御設定
+
+# 自動ファイル出力の閾値（文字数）
+mcp_max_output_chars: 8000
+
+# 自動ファイル出力ディレクトリ
+mcp_auto_file_output_dir: "./mcp_outputs"
+
+```
+
+### エラー処理フォールバック
+1. **第1選択**: 明示的ファイル出力
+2. **第2選択**: 自動ファイル保存
+3. **最終手段**: 全文出力
+
+### 実用例
+
+#### 例1: 大容量ドキュメント分析
+```yaml
+# comprehensive_analyzer.yml
+name: "comprehensive_document_analyzer"
+output:
+  large_output_control: true
+```
+
+**Claude Desktop での使用:**
+- input: `{"@file:document": "/documents/annual_report.pdf:text", "analysis_depth": "comprehensive"}`
+- output_file_path: `"/analysis/report_2024.txt"`
+
+#### 例2: 自動バッチ処理
+```yaml
+# batch_processor.yml
+name: "data_batch_processor"
+# 自動制御に依存（large_output_control設定なし）
+```
+
+**使用:**
+- input: `{"@file:dataset": "/data/large_dataset.csv:csv", "processing_type": "full_analysis"}`
+
+**自動応答（75KB出力の場合）:**
+`"🔄 Large output detected (76,543 characters). Results automatically saved to: /absolute/path/to/mcp_outputs/data_batch_processor_1640995200000.txt"`
+
+
+### セキュリティ考慮事項
+
+- **パストラバーサル防止**: ファイルパスの厳格な検証
+- **権限確認**: ファイル書き込み権限の事前チェック
+- **一時ファイル管理**: 自動削除とセキュアな保存場所
+
+### パフォーマンス最適化
+
+- **並行処理**: ファイル操作の非同期実行
+- **メモリ効率**: 大容量データの段階的処理
+- **ディスク使用量**: 出力ファイルの適切な管理
+- **ネットワーク効率**: 不要な大容量転送の回避
 
 ### デバッグログの活用
 

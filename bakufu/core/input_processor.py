@@ -1,14 +1,11 @@
 """File input processing module for bakufu"""
 
-import csv
-import json
 import os
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from .exceptions import BakufuError
+from .text_processing import CsvProcessor, JsonProcessor, YamlProcessor
 
 
 class FileInputProcessor:
@@ -303,49 +300,16 @@ class FileInputProcessor:
 
     def _load_json_file(self, file_path: str, encoding: str) -> Any:
         """Load a JSON file and return the parsed content"""
-        with open(file_path, encoding=encoding) as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError as e:
-                raise BakufuError(
-                    f"Invalid JSON in file '{file_path}': {e}", "INVALID_JSON_FORMAT"
-                ) from e
+        return JsonProcessor.parse_json_file(file_path, encoding)
 
     def _load_yaml_file(self, file_path: str, encoding: str) -> Any:
         """Load a YAML file and return the parsed content"""
-        with open(file_path, encoding=encoding) as f:
-            try:
-                return yaml.safe_load(f)
-            except yaml.YAMLError as e:
-                raise BakufuError(
-                    f"Invalid YAML in file '{file_path}': {e}", "INVALID_YAML_FORMAT"
-                ) from e
+        return YamlProcessor.parse_yaml_file(file_path, encoding)
 
     def _load_csv_file(self, file_path: str, encoding: str) -> list[dict[str, str]]:
         """Load a CSV file and return the content as a list of dictionaries"""
-        with open(file_path, encoding=encoding, newline="") as f:
-            try:
-                # Detect delimiter and other parameters
-                sample = f.read(1024)
-                f.seek(0)
-
-                sniffer = csv.Sniffer()
-                delimiter = sniffer.sniff(sample).delimiter
-
-                reader = csv.DictReader(f, delimiter=delimiter)
-                return list(reader)
-            except Exception as e:
-                raise BakufuError(
-                    f"Error parsing CSV file '{file_path}': {e}", "INVALID_CSV_FORMAT"
-                ) from e
+        return CsvProcessor.parse_csv_file(file_path, encoding)
 
     def _load_tsv_file(self, file_path: str, encoding: str) -> list[dict[str, str]]:
         """Load a TSV file and return the content as a list of dictionaries"""
-        with open(file_path, encoding=encoding, newline="") as f:
-            try:
-                reader = csv.DictReader(f, delimiter="\t")
-                return list(reader)
-            except Exception as e:
-                raise BakufuError(
-                    f"Error parsing TSV file '{file_path}': {e}", "INVALID_TSV_FORMAT"
-                ) from e
+        return CsvProcessor.parse_tsv_file(file_path, encoding)

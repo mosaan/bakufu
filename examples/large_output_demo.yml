@@ -1,0 +1,92 @@
+name: "large_document_analyzer"
+description: "Analyze large documents and generate comprehensive reports"
+version: "1.0"
+
+input_parameters:
+  - name: "document_content"
+    type: "string"
+    required: true
+    description: "The document content to analyze"
+  - name: "analysis_depth"
+    type: "string"
+    required: false
+    default: "detailed"
+    description: "Analysis depth: basic, detailed, or comprehensive"
+
+steps:
+  - id: "analyze_structure"
+    type: "ai_call"
+    prompt: |
+      Analyze the structure of this document:
+      
+      Document: {{ document_content }}
+      
+      Provide a {{ analysis_depth }} structural analysis including:
+      - Document type and format
+      - Main sections and subsections
+      - Key topics covered
+      - Document length and complexity
+      
+      Analysis depth: {{ analysis_depth }}
+
+  - id: "extract_key_information"
+    type: "ai_call"
+    prompt: |
+      Extract key information from this document:
+      
+      Document: {{ document_content }}
+      Structure Analysis: {{ steps.analyze_structure }}
+      
+      Extract and organize:
+      - Main themes and concepts
+      - Important facts and figures
+      - Key conclusions or recommendations
+      - Notable quotes or excerpts
+      
+      Analysis depth: {{ analysis_depth }}
+
+  - id: "generate_summary"
+    type: "ai_call"
+    prompt: |
+      Generate a comprehensive summary report:
+      
+      Document: {{ document_content }}
+      Structure: {{ steps.analyze_structure }}
+      Key Information: {{ steps.extract_key_information }}
+      
+      Create a {{ analysis_depth }} summary report that includes:
+      
+      1. Executive Summary
+      2. Document Overview
+      3. Detailed Analysis
+      4. Key Findings
+      5. Recommendations
+      6. Appendices (if comprehensive analysis)
+      
+      Make the report professional and well-structured.
+      For comprehensive analysis, include detailed explanations and examples.
+      
+      Analysis depth: {{ analysis_depth }}
+
+output:
+  format: "text"
+  large_output_control: true
+  template: |
+    # Document Analysis Report
+    
+    **Document Analysis Completed**
+    Analysis Depth: {{ analysis_depth }}
+    
+    ## Final Report
+    
+    {{ steps.generate_summary }}
+    
+    ---
+    
+    ## Analysis Metadata
+    - Structure Analysis: ✓ Completed
+    - Key Information Extraction: ✓ Completed  
+    - Summary Generation: ✓ Completed
+    - Report Generation: ✓ Completed
+    
+    **Note**: This analysis may generate large outputs. Use the `output_file_path` parameter to save results to a file for comprehensive analyses.
