@@ -64,32 +64,40 @@ steps:
   # Step 4: Extract specific information from CSV data
   - id: extract_engineers
     type: text_process
-    method: array_filter
+    method: format
     input: "{{ steps.parse_csv.output }}"
-    condition: "item.occupation == 'Engineer' or item.occupation == 'Developer'"
+    template: |
+      [{% for item in steps.parse_csv.output if item.occupation == 'Engineer' or item.occupation == 'Developer' %}
+        {{ item | tojson }}{{ "," if not loop.last }}
+      {% endfor %}]
+    parse_as_json: true
 
   # Step 5: Transform TSV data to include total value
   - id: calculate_inventory_value
     type: text_process
-    method: array_transform
+    method: format
     input: "{{ steps.parse_tsv.output }}"
-    transform_expression: |
-      {
-        "product": item.product,
-        "price": item.price|float,
-        "stock": item.stock|int,
-        "total_value": (item.price|float * item.stock|int)|round(2),
-        "category": item.category
-      }
+    template: |
+      [{% for item in steps.parse_tsv.output %}
+        {
+          "product": "{{ item.product }}",
+          "price": {{ item.price|float }},
+          "stock": {{ item.stock|int }},
+          "total_value": {{ (item.price|float * item.stock|int)|round(2) }},
+          "category": "{{ item.category }}"
+        }{{ "," if not loop.last }}
+      {% endfor %}]
+    parse_as_json: true
 
   # Step 6: Create summary from YAML config
   - id: create_config_summary
     type: ai_call
+    input: "{{ steps.parse_yaml.output }}"
     provider: gemini
     model: gemini-1.5-flash
     prompt: |
       Based on this application configuration:
-      {{ steps.parse_yaml.output | tojson }}
+      {{ input | tojson }}
       
       Create a concise deployment summary including:
       1. Application details
@@ -102,20 +110,21 @@ steps:
   # Step 7: Count total products
   - id: inventory_count
     type: text_process
-    method: array_aggregate
+    method: format
     input: "{{ steps.calculate_inventory_value.output }}"
-    aggregate_operation: "count"
+    template: "{{ steps.calculate_inventory_value.output | length }}"
 
   # Step 8: Calculate total inventory value
   - id: inventory_total_value
     type: text_process
-    method: array_aggregate
+    method: format
     input: "{{ steps.calculate_inventory_value.output }}"
-    aggregate_operation: "sum"
+    template: "{{ steps.calculate_inventory_value.output | map(attribute='total_value') | sum }}"
 
   # Step 9: Generate final report
   - id: generate_report
     type: ai_call
+    input: "Generating comprehensive report"
     provider: gemini
     model: gemini-1.5-flash
     prompt: |

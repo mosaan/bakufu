@@ -2,9 +2,10 @@
 
 import json
 import sys
-from typing import Any
+from typing import Any, TypedDict, Unpack
 
 import click
+from pydantic import BaseModel
 from rich.console import Console
 
 from .core.config_loader import ConfigLoader
@@ -15,6 +16,39 @@ from .core.progress import ProgressManager
 from .core.workflow_loader import WorkflowLoader
 
 console = Console()
+
+
+class RunCommandKwargs(TypedDict, total=False):
+    """Type definition for run command kwargs from click"""
+
+    workflow_file: str
+    provider: str | None
+    input_data: str | None
+    input_file: str | None
+    file_inputs: tuple[str, ...]
+    output: str | None
+    output_format: str
+    verbose: bool
+    dry_run: bool
+
+
+class RunCommandOptions(BaseModel):
+    """Options for the 'run' command"""
+
+    workflow_file: str
+    provider: str | None = None
+    input_data: str | None = None
+    input_file: str | None = None
+    file_inputs: tuple[str, ...]
+    output: str | None = None
+    output_format: str
+    verbose: bool
+    dry_run: bool
+
+
+# Type aliases for better type safety
+InputData = dict[str, Any]  # Input data dictionary
+WorkflowOutput = dict[str, Any] | str  # Workflow output can be dict or string
 
 
 @click.group()
@@ -48,51 +82,52 @@ def cli(ctx: click.Context, config: str) -> None:
 @click.option("--verbose", is_flag=True, help="Verbose output")
 @click.option("--dry-run", is_flag=True, help="Validate only, don't execute")
 @click.pass_context
-def run(  # noqa: PLR0913
-    ctx: click.Context,
-    workflow_file: str,
-    provider: str,
-    input_data: str,
-    input_file: str,
-    file_inputs: tuple[str, ...],
-    output: str,
-    output_format: str,
-    verbose: bool,
-    dry_run: bool,
-) -> None:
+def run(ctx: click.Context, **kwargs: Unpack[RunCommandKwargs]) -> None:
     """Execute a workflow"""
+    options = RunCommandOptions(**kwargs)
     try:
-        workflow = _load_and_display_workflow(workflow_file, verbose)
-        input_dict = _parse_input_data(input_data, input_file, file_inputs)
+        workflow = _load_and_display_workflow(options.workflow_file, options.verbose)
+        input_dict = _parse_input_data(options.input_data, options.input_file, options.file_inputs)
 
         # Validate and apply default values for input parameters
         validated_input_dict = _validate_and_apply_defaults(workflow, input_dict)
 
-        if verbose and validated_input_dict:
+        if options.verbose and validated_input_dict:
             console.print(
                 f"📥 Input data: {json.dumps(validated_input_dict, indent=2, ensure_ascii=False)}"
             )
 
-        if dry_run:
+        if options.dry_run:
             _handle_dry_run()
             return
 
         results, execution_context = _execute_workflow(
-            workflow, validated_input_dict, provider, ctx.obj.get("config"), output_format
+            workflow,
+            validated_input_dict,
+            options.provider,
+            ctx.obj.get("config"),
+            options.output_format,
         )
-        _handle_output(results, workflow, output_format, output, verbose, validated_input_dict)
+        _handle_output(
+            results,
+            workflow,
+            options.output_format,
+            options.output,
+            options.verbose,
+            validated_input_dict,
+        )
         _display_usage_summary(execution_context)
 
     except BakufuError as e:
-        _handle_bakufu_error(ctx, e, verbose)
+        _handle_bakufu_error(ctx, e, options.verbose)
     except Exception as e:
-        _handle_unexpected_error(ctx, e, verbose)
+        _handle_unexpected_error(ctx, e, options.verbose)
 
 
 # CLI Helper Functions
 def _parse_input_data(
     input_data: str | None, input_file: str | None, file_inputs: tuple[str, ...] | None = None
-) -> dict[str, Any]:
+) -> InputData:
     """Parse input data from various sources"""
     input_dict = {}
 
@@ -134,7 +169,7 @@ def _parse_input_data(
 
 def _create_execution_context(
     workflow: Workflow,
-    input_dict: dict[str, Any],
+    input_dict: InputData,
     provider: str | None,
     config_path: str | None = None,
 ) -> ExecutionContext:
@@ -156,10 +191,10 @@ def _create_execution_context(
 
 
 def _format_output(
-    results: dict[str, Any] | str,
+    results: WorkflowOutput,
     output_format: str,
     workflow: Workflow,
-    input_data: dict[str, Any] | None = None,
+    input_data: InputData | None = None,
 ) -> str:
     """Format workflow execution results"""
     if output_format == "json":
@@ -225,11 +260,11 @@ def _handle_dry_run() -> None:
 
 def _execute_workflow(
     workflow: Workflow,
-    input_dict: dict[str, Any],
+    input_dict: InputData,
     provider: str | None,
     config_path: str | None = None,
     output_format: str = "text",
-) -> tuple[dict[str, Any], "ExecutionContext"]:
+) -> tuple[WorkflowOutput, "ExecutionContext"]:
     """Execute workflow and return results with context"""
     context = _create_execution_context(workflow, input_dict, provider, config_path)
 
@@ -264,12 +299,12 @@ def _execute_workflow(
 
 
 def _handle_output(  # noqa: PLR0913
-    results: dict[str, Any],
+    results: WorkflowOutput,
     workflow: Workflow,
     output_format: str,
     output: str | None,
     verbose: bool,
-    input_data: dict[str, Any] | None = None,
+    input_data: InputData | None = None,
 ) -> None:
     """Handle workflow output formatting and saving"""
     # Format output
@@ -284,7 +319,7 @@ def _handle_output(  # noqa: PLR0913
             workflow_name=workflow.name, input_data=input_data or {}, config=config
         )
         # Update context with results for template rendering
-        context.step_outputs = results
+        context.step_outputs = results  # type: ignore[assignment]
         final_output = context.render_template(workflow.output.template)
     else:
         final_output = results
@@ -350,7 +385,7 @@ def _load_and_validate_workflow(workflow_file: str, verbose: bool) -> Workflow:
     return workflow
 
 
-def _validate_and_apply_defaults(workflow: Workflow, input_dict: dict[str, Any]) -> dict[str, Any]:
+def _validate_and_apply_defaults(workflow: Workflow, input_dict: InputData) -> InputData:
     """Validate input parameters and apply default values"""
     if not workflow.input_parameters:
         return input_dict
@@ -402,7 +437,7 @@ def _validate_parameter_type(value: Any, param: InputParameter) -> bool:
     return validator(value) if validator else True
 
 
-def _create_dummy_input(workflow: Workflow) -> dict[str, Any]:
+def _create_dummy_input(workflow: Workflow) -> InputData:
     """Create dummy input data for template validation"""
     dummy_input = {}
 

@@ -4,9 +4,11 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from ..step_registry import step_type
 from .base import TextProcessStep
 
 
+@step_type("text_process", "markdown_split")
 class MarkdownSplitStep(TextProcessStep):
     """Markdown splitting text processing step"""
 

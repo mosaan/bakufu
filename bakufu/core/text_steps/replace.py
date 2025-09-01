@@ -4,9 +4,11 @@ from typing import Literal
 
 from pydantic import Field, field_validator
 
+from ..step_registry import step_type
 from .base import TextProcessStep
 
 
+@step_type("text_process", "replace")
 class ReplaceStep(TextProcessStep):
     """Text replacement processing step"""
 

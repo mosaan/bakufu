@@ -46,9 +46,6 @@ class BakufuConfig(BaseModel):
     timeout_per_step: int = Field(default=60, gt=0)
     max_parallel_ai_calls: int = Field(default=3, gt=0)
     max_parallel_text_processing: int = Field(default=5, gt=0)
-    max_auto_retry_attempts: int = Field(
-        default=10, ge=0, description="Maximum auto-retry attempts when AI response is truncated"
-    )
 
     provider_settings: dict[str, ProviderConfig] = Field(default_factory=dict)
 

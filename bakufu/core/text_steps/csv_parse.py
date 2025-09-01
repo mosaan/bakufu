@@ -9,9 +9,11 @@ from typing import Any, Literal
 from pydantic import Field
 
 from ..csv_parsing import CsvParsingOptions, CsvProcessor
+from ..step_registry import step_type
 from .base import TextProcessStep
 
 
+@step_type("text_process", "csv_parse")
 class CsvParseStep(TextProcessStep):
     """Unified CSV/TSV parsing text processing step
 
@@ -55,6 +57,7 @@ class CsvParseStep(TextProcessStep):
 
 
 # Alias for backward compatibility with TSV
+@step_type("text_process", "tsv_parse")
 class TsvParseStep(CsvParseStep):
     """TSV parsing step - alias for CsvParseStep with TSV defaults"""
 

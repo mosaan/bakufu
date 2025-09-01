@@ -120,7 +120,72 @@ Jinja2の標準フィルターと関数も利用できます：
     分析日時: {{ now().strftime('%Y-%m-%d %H:%M') }}
 ```
 
-### 2. 条件分岐での評価
+### 2. 純粋なテンプレート処理（FormatStep）
+
+**v1.2.0新機能**: AI呼び出しなしで純粋なJinja2テンプレート処理が可能です。
+
+```yaml
+- id: format_report
+  type: text_process
+  method: format
+  template: |
+    # 売上レポート {{ now().strftime('%Y年%m月') }}
+    
+    ## 概要
+    - 処理件数: {{ sales_data | length }}
+    - 総売上: {{ sales_data | sum(attribute='amount') | round }}円
+    - 平均単価: {{ (sales_data | sum(attribute='amount') / sales_data | length) | round }}円
+    
+    ## 詳細データ
+    {% for sale in sales_data %}
+    {{ loop.index }}. {{ sale.product_name }}: {{ sale.amount }}円
+       顧客: {{ sale.customer_name }}
+       日時: {{ sale.date }}
+    {% endfor %}
+    
+    ## カテゴリ別集計
+    {% for category, items in sales_data | groupby('category') %}
+    ### {{ category | title }}
+    - 件数: {{ items | length }}
+    - 合計: {{ items | sum(attribute='amount') }}円
+    {% endfor %}
+  input: "dummy"  # format メソッドでは使用されないが必須
+```
+
+**FormatStepの特徴**:
+- **高速処理**: AI呼び出しなしのため非常に高速
+- **複雑な制御構造**: 条件分岐、ループ、マクロなどを自由に使用
+- **ステップ結果の参照**: `{{ steps.previous_step.result }}` で他のステップの結果を利用
+- **豊富なフィルタ**: Jinja2の全機能とbakufu独自フィルタを利用可能
+- **バッチ処理**: 複数データを効率的にまとめて処理
+
+**FormatStepでのマクロ使用例**:
+```yaml
+- id: advanced_formatting
+  type: text_process
+  method: format
+  template: |
+    {% macro format_price(price) %}
+    {% if price >= 10000 %}
+    {{ "%.1f"|format(price/10000) }}万円
+    {% else %}
+    {{ price }}円
+    {% endif %}
+    {% endmacro %}
+    
+    {% macro item_list(items, title) %}
+    ## {{ title }}
+    {% for item in items %}
+    - {{ item.name }}: {{ format_price(item.price) }}
+    {% endfor %}
+    {% endmacro %}
+    
+    {{ item_list(expensive_items, "高額商品") }}
+    {{ item_list(cheap_items, "お手頃商品") }}
+  input: "dummy"
+```
+
+### 3. 条件分岐での評価
 
 ```yaml
 - id: conditional_step
@@ -132,7 +197,7 @@ Jinja2の標準フィルターと関数も利用できます：
       prompt: "プレミアムサービスを提供"
 ```
 
-### 3. 出力フォーマット
+### 4. 出力フォーマット
 
 ```yaml
 output:
@@ -146,7 +211,7 @@ output:
     {{ steps.analysis.output | strip_whitespace }}
 ```
 
-### 4. 配列・オブジェクト処理
+### 5. 配列・オブジェクト処理
 
 ```yaml
 - id: process_items

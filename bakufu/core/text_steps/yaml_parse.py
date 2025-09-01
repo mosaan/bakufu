@@ -5,9 +5,11 @@ from typing import Any, Literal
 import yaml
 
 from ..exceptions import ErrorContext, StepExecutionError
+from ..step_registry import step_type
 from .base import TextProcessStep
 
 
+@step_type("text_process", "yaml_parse")
 class YamlParseStep(TextProcessStep):
     """YAML parsing text processing step"""
 

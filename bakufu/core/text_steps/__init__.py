@@ -1,13 +1,12 @@
 """Text processing steps module"""
 
-from .array_aggregate import ArrayAggregateStep
-from .array_filter import ArrayFilterStep
-from .array_sort import ArraySortStep
-from .array_transform import ArrayTransformStep
+# Import all step classes to trigger registration
+from ..step_registry import get_global_registry  # noqa: F401
 from .base import TextProcessStep
 from .csv_parse import CsvParseStep, TsvParseStep
 from .extract_between_marker import ExtractBetweenMarkerStep
 from .fixed_split import FixedSplitStep
+from .format import FormatStep
 from .json_parse import JsonParseStep
 from .markdown_split import MarkdownSplitStep
 from .parse_as_json import ParseAsJsonStep
@@ -25,14 +24,11 @@ AnyTextProcessStep = (
     | JsonParseStep
     | MarkdownSplitStep
     | FixedSplitStep
-    | ArrayFilterStep
-    | ArrayTransformStep
-    | ArrayAggregateStep
-    | ArraySortStep
     | SplitStep
     | ExtractBetweenMarkerStep
     | SelectItemStep
     | ParseAsJsonStep
+    | FormatStep
     | CsvParseStep
     | TsvParseStep
     | YamlParseStep
@@ -40,13 +36,10 @@ AnyTextProcessStep = (
 
 __all__ = [
     "AnyTextProcessStep",
-    "ArrayAggregateStep",
-    "ArrayFilterStep",
-    "ArraySortStep",
-    "ArrayTransformStep",
     "CsvParseStep",
     "ExtractBetweenMarkerStep",
     "FixedSplitStep",
+    "FormatStep",
     "JsonParseStep",
     "MarkdownSplitStep",
     "ParseAsJsonStep",

@@ -1,9 +1,23 @@
 """Enhanced error handling and exception classes for bakufu"""
 
 import traceback
-from typing import Any
+from typing import Any, TypedDict
 
 from pydantic import BaseModel
+
+
+class ValidationFieldError(TypedDict, total=False):
+    """Type definition for field validation errors"""
+
+    field: str
+    message: str
+    invalid_value: Any
+    expected_type: str | None
+
+
+# Type aliases for better type safety
+ErrorDict = dict[str, Any]  # Error dictionary for serialization
+InputDataDict = dict[str, Any]  # Input data dictionary in error context
 
 
 class ErrorContext(BaseModel):
@@ -14,7 +28,7 @@ class ErrorContext(BaseModel):
     function_name: str | None = None
     step_id: str | None = None
     workflow_name: str | None = None
-    input_data: dict[str, Any] = {}
+    input_data: InputDataDict = {}
 
 
 class BakufuError(Exception):
@@ -40,7 +54,7 @@ class BakufuError(Exception):
         """String representation including error code"""
         return f"{self.message} ({self.error_code})"
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> ErrorDict:
         """Convert error to dictionary for JSON serialization"""
         return {
             "error_type": self.__class__.__name__,
@@ -89,7 +103,7 @@ class WorkflowValidationError(WorkflowError):
     """Workflow validation failed"""
 
     def __init__(
-        self, message: str, field_errors: list[dict[str, Any]] | None = None, **kwargs: Any
+        self, message: str, field_errors: list[ValidationFieldError] | None = None, **kwargs: Any
     ):
         super().__init__(message=message, error_code="WORKFLOW_VALIDATION_ERROR", **kwargs)
         self.field_errors = field_errors or []
@@ -312,7 +326,7 @@ class ErrorReporter:
             return "\n".join(message_parts)
 
     @staticmethod
-    def format_error_for_json(error: BakufuError) -> dict[str, Any]:
+    def format_error_for_json(error: BakufuError) -> ErrorDict:
         """Format error for JSON output"""
         return error.to_dict()
 

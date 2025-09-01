@@ -42,66 +42,98 @@ steps:
   # Step 3: Transform sales data to add calculated fields
   - id: enrich_sales_data
     type: text_process
-    method: array_transform
+    method: format
     input: "{{ steps.parse_sales.output }}"
-    transform_expression: |
-      {
-        "region": item.region,
-        "product": item.product,
-        "sales_rep": item.sales_rep,
-        "quantity": item.quantity|int,
-        "unit_price": item.unit_price|float,
-        "total_amount": (item.quantity|int * item.unit_price|float)|round(2),
-        "sale_date": item.sale_date,
-        "month": item.sale_date[:7]
-      }
+    template: |
+      [{% for item in steps.parse_sales.output %}
+        {
+          "region": "{{ item.region }}",
+          "product": "{{ item.product }}",
+          "sales_rep": "{{ item.sales_rep }}",
+          "quantity": {{ item.quantity|int }},
+          "unit_price": {{ item.unit_price|float }},
+          "total_amount": {{ (item.quantity|int * item.unit_price|float)|round(2) }},
+          "sale_date": "{{ item.sale_date }}",
+          "month": "{{ item.sale_date[:7] }}"
+        }{{ "," if not loop.last }}
+      {% endfor %}]
+    parse_as_json: true
 
   # Step 4: Calculate regional total sales
   - id: regional_total_sales
-    type: text_process
-    method: array_aggregate
+    type: ai_call
     input: "{{ steps.enrich_sales_data.output }}"
-    group_by: "region"
-    aggregate_operation: "sum"
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Group the following sales data by region and calculate total sales amount for each region:
+      {{ input | tojson }}
+      
+      Return the result as JSON array with format: [{"region": "North", "total": 1234.56}, ...]
+      Only return valid JSON, no explanations.
 
   # Step 5: Calculate regional transaction count
   - id: regional_transaction_count
-    type: text_process
-    method: array_aggregate
+    type: ai_call
     input: "{{ steps.enrich_sales_data.output }}"
-    group_by: "region"
-    aggregate_operation: "count"
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Count the number of transactions by region from this sales data:
+      {{ input | tojson }}
+      
+      Return the result as JSON array with format: [{"region": "North", "count": 3}, ...]
+      Only return valid JSON, no explanations.
 
   # Step 6: Calculate product total revenue
   - id: product_total_revenue
-    type: text_process
-    method: array_aggregate
+    type: ai_call
     input: "{{ steps.enrich_sales_data.output }}"
-    group_by: "product"
-    aggregate_operation: "sum"
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Group the following sales data by product and calculate total revenue for each product:
+      {{ input | tojson }}
+      
+      Return the result as JSON array with format: [{"product": "Laptop", "total": 1234.56}, ...]
+      Only return valid JSON, no explanations.
 
   # Step 7: Calculate sales rep total sales
   - id: sales_rep_total_sales
-    type: text_process
-    method: array_aggregate
+    type: ai_call
     input: "{{ steps.enrich_sales_data.output }}"
-    group_by: "sales_rep"
-    aggregate_operation: "sum"
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Group the following sales data by sales representative and calculate total sales for each rep:
+      {{ input | tojson }}
+      
+      Return the result as JSON array with format: [{"sales_rep": "John Smith", "total": 1234.56}, ...]
+      Only return valid JSON, no explanations.
 
   # Step 8: Sort sales reps by performance
   - id: top_sales_reps
-    type: text_process
-    method: array_sort
+    type: ai_call
     input: "{{ steps.sales_rep_total_sales.output }}"
-    sort_by: "sum"
-    reverse: true
+    provider: gemini
+    model: gemini-1.5-flash
+    prompt: |
+      Sort the following sales rep data by total sales amount in descending order:
+      {{ input }}
+      
+      Return the sorted result as JSON array.
+      Only return valid JSON, no explanations.
 
   # Step 9: Filter high-value transactions
   - id: high_value_sales
     type: text_process
-    method: array_filter
+    method: format
     input: "{{ steps.enrich_sales_data.output }}"
-    condition: "item.total_amount > 2000"
+    template: |
+      [{% for item in steps.enrich_sales_data.output if item.total_amount > 2000 %}
+        {{ item | tojson }}{{ "," if not loop.last }}
+      {% endfor %}]
+    parse_as_json: true
 
   # Step 10: Generate sales analysis report
   - id: sales_analysis

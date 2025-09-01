@@ -137,8 +137,52 @@ AI プロバイダーを呼び出してテキスト生成を行います。
   model: string             # モデル指定（オプション）
   temperature: float        # 0.0-2.0（オプション）
   max_tokens: integer       # 最大トークン数（オプション）
+  max_auto_retry_attempts: integer  # Auto-Continuation再試行回数（オプション）
+  ai_params: object         # LiteLLMパラメータ（オプション）
   on_error: "stop" | "continue" | "skip_remaining"
 ```
+
+#### ai_paramsフィールド
+
+`ai_params`フィールドにより、LiteLLMのすべてのパラメータを透過的に利用できます。明示的に定義されていないパラメータ（top_p、presence_penalty、response_format等）をここで指定できます。
+
+```yaml
+- id: "advanced_ai_call"
+  type: "ai_call"
+  prompt: "{{ input.prompt }}"
+  ai_params:
+    # サンプリング制御
+    top_p: 0.9
+    presence_penalty: 0.6
+    frequency_penalty: 0.3
+    
+    # 構造化出力
+    response_format:
+      type: "json_object"
+    
+    # Function Calling
+    tools:
+      - type: "function"
+        function:
+          name: "get_weather"
+          parameters:
+            type: "object"
+            properties:
+              location: {"type": "string"}
+    tool_choice: "auto"
+    
+    # 出力制御
+    stop: ["END", "---"]
+    logit_bias: {"token_id": -100}
+    seed: 42
+```
+
+**パラメータ優先順位**:
+1. プロバイダー設定（config.yml）
+2. ai_paramsフィールド
+3. 明示的パラメータ（temperature、max_tokens等）
+
+詳細は [AI Parameters Reference](ai-parameters.md) を参照してください。
 
 **サポートプロバイダー**:
 LiteLLMのサポートするプロバイダーに準拠します。
@@ -252,6 +296,10 @@ AI Call および AI Map Call ステップに出力検証機能を追加でき�
 | `extract_between_marker` | マーカー間テキスト抽出 | **v1.1.0新機能** |
 | `select_item` | 配列要素選択 | **v1.1.0新機能** |
 | `parse_as_json` | JSON解析・検証 | **v1.1.0新機能** |
+| `csv_parse` | CSV解析 | **v1.2.0新機能** |
+| `tsv_parse` | TSV解析 | **v1.2.0新機能** |
+| `yaml_parse` | YAML解析 | **v1.2.0新機能** |
+| `format` | Jinja2テンプレート形式化 | **v1.2.0新機能** |
 
 ### AI Map Call ステップ
 
@@ -269,6 +317,8 @@ AI Call および AI Map Call ステップに出力検証機能を追加でき�
   model: string             # モデルのオーバーライド  
   temperature: float        # 温度パラメータ（0.0-2.0）
   max_tokens: integer       # 最大トークン数
+  max_auto_retry_attempts: integer  # Auto-Continuation再試行回数（オプション）
+  ai_params: object         # LiteLLMパラメータ（オプション）
   
   # 並列実行制御
   concurrency:
@@ -454,6 +504,135 @@ JSON解析とスキーマ検証機能を提供し、検証結果のメタデー�
 - `schema_file` (string, オプション): JSONスキーマファイルのパス
 - `strict_validation` (boolean, オプション): スキーマ検証失敗時にエラーとするか（デフォルト: false）
 - `format_output` (boolean, オプション): JSON出力を整形するか（デフォルト: false）
+
+### csv_parse メソッド
+
+CSV形式のテキストを構造化データに変換します。
+
+```yaml
+- id: "parse_csv_data"
+  type: "text_process"
+  method: "csv_parse"
+  input: |
+    name,age,city
+    John,30,NYC
+    Jane,25,LA
+  delimiter: ","                # 区切り文字（オプション、デフォルト: 自動検出）
+```
+
+**パラメータ**:
+- `delimiter` (string, オプション): CSV区切り文字（自動検出またはカスタム指定）
+
+**出力**: `list[dict]` - 各行をキー値ペアとした辞書の配列
+
+### tsv_parse メソッド
+
+TSV（タブ区切り）形式のテキストを構造化データに変換します。
+
+```yaml
+- id: "parse_tsv_data"
+  type: "text_process"
+  method: "tsv_parse"
+  input: |
+    product	price	category
+    Laptop	1299.99	Electronics
+    Book	19.99	Education
+```
+
+**出力**: `list[dict]` - 各行をキー値ペアとした辞書の配列
+
+### yaml_parse メソッド
+
+YAML形式のテキストを構造化データに変換します。
+
+```yaml
+- id: "parse_yaml_config"
+  type: "text_process"
+  method: "yaml_parse"
+  input: |
+    database:
+      host: localhost
+      port: 5432
+    features:
+      - auth
+      - logging
+```
+
+**出力**: YAML構造に応じた辞書またはリスト
+
+### format メソッド
+
+Jinja2テンプレートエンジンを使用してテキストを動的に生成します。AI呼び出しなしで純粋なテンプレート処理を実行します。
+
+```yaml
+- id: "format_text"
+  type: "text_process"
+  method: "format"
+  template: string              # Jinja2テンプレート文字列（必須）
+  input: "dummy"                # 形式上必要だが実際は使用されない
+```
+
+**基本的な使用例**:
+```yaml
+- id: "simple_greeting"
+  type: "text_process"
+  method: "format"
+  template: "Hello {{ user_name }}! You are {{ user_age }} years old."
+  input: "dummy"
+```
+
+**条件分岐付きテンプレート**:
+```yaml
+- id: "conditional_message"
+  type: "text_process"
+  method: "format"
+  template: |
+    {% if user_age >= 18 %}
+    Welcome, {{ user_name }}! You are an adult.
+    {% else %}
+    Hi {{ user_name }}! You are still a minor.
+    {% endif %}
+  input: "dummy"
+```
+
+**ループ処理とフィルタ**:
+```yaml
+- id: "product_report"
+  type: "text_process"
+  method: "format"
+  template: |
+    Product Report for {{ user_name }}:
+    
+    {% for item in steps.generate_products.result %}
+    {{ loop.index }}. {{ item.name }}
+       Category: {{ item.category | title }}
+       Price: {{ item.price }}円
+       {% if item.price > 10000 %}
+       ** High-value item **
+       {% endif %}
+    {% endfor %}
+    
+    Total Items: {{ steps.generate_products.result | length }}
+    Total Value: {{ steps.generate_products.result | sum(attribute='price') }}円
+  input: "dummy"
+```
+
+**利用可能なJinja2機能**:
+- **変数出力**: `{{ variable }}`
+- **条件分岐**: `{% if %}...{% else %}...{% endif %}`
+- **ループ**: `{% for item in items %}...{% endfor %}`
+- **変数設定**: `{% set var = value %}`
+- **マクロ**: `{% macro name() %}...{% endmacro %}`
+- **フィルタ**: `{{ text | upper }}`, `{{ list | length }}`, `{{ list | sum(attribute='price') }}`
+- **ステップ結果参照**: `{{ steps.step_id.result }}`
+- **入力データ参照**: `{{ inputs.parameter_name }}`
+
+**特徴**:
+- AI呼び出しなしの高速処理
+- 複雑な条件分岐やループ処理
+- ステップ結果の動的な参照と加工
+- 豊富なJinja2フィルタによるデータ変換
+- セキュリティチェックリストのバッチ処理など実用的な用途
 
 ## テンプレートシステム
 

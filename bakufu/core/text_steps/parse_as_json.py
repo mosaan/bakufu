@@ -6,9 +6,11 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from ..step_registry import step_type
 from .base import TextProcessStep
 
 
+@step_type("text_process", "parse_as_json")
 class ParseAsJsonStep(TextProcessStep):
     """JSON parsing with validation and metadata processing step"""
 

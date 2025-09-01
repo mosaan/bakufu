@@ -11,7 +11,7 @@ Model Context Protocol（MCP）は、AIアプリケーションが外部デー�
 - **動的ワークフロー登録**: 指定ディレクトリ内のワークフローファイル（.yml/.yaml）を自動検出・登録
 - **MCP Sampling Mode**: GitHub CopilotのLLMをMCP Sampling API経由で利用（APIキー不要）
 - **デュアルモード運用**: 従来のLLMプロバイダーとMCP Samplingの切り替え対応
-- **統合入力処理**: `@file:`プレフィックスによる柔軟なファイル入力処理と直接JSON値サポート
+- **構造化入力処理**: LLMにとって理解しやすい構造化データ方式による柔軟なファイル入力処理と直接値サポート
 - **自動パラメータ検証**: ワークフロー定義に基づく入力パラメータの型チェックと必須項目検証
 - **実行時統計**: AI使用量（API呼び出し回数、トークン数、コスト）とパフォーマンス情報
 - **包括的エラーハンドリング**: 詳細なエラーメッセージと実行ログ
@@ -187,90 +187,146 @@ input_parameters:
 
 ## 統合入力形式
 
-MCP統合では、パラメータ値に特別なプレフィックスを使って高度な入力処理が可能です：
+MCP統合では、LLMにとって理解しやすい**構造化データ方式**をサポートしています：
 
-### `@file:` プレフィックス
-ファイルからコンテンツを読み込み、指定した形式で解析します。
+### 構造化データ方式
+LLMにとって理解しやすい明示的な構造を持つ入力形式です。
 
-#### 書式
-```
-@file:ファイルパス:形式:エンコーディング
-```
-
-- **ファイルパス**: 読み込むファイルのパス（必須）
-- **形式**: `text`（デフォルト）、`json`、`yaml`、`csv`（オプション）
-- **エンコーディング**: `utf-8`（デフォルト）、`shift_jis`など（オプション）
-
-#### 例
-```
-@file:/path/to/file.txt                    # プレーンテキスト（UTF-8）
-@file:/path/to/data.json:json              # JSON形式で解析
-@file:/path/to/data.yaml:yaml              # YAML形式で解析
-@file:/path/to/data.csv:csv                # CSV形式で解析
-@file:/path/to/file.txt:text:shift_jis     # Shift_JISテキスト
-```
-
-### 直接JSON値
-JSON値は特別なプレフィックスなしで直接渡すことができます。
-
-#### 書式
-```
-任意のJSON値
-```
-
-#### 例
-```
-{"key": "value", "number": 42}           # オブジェクト
-["item1", "item2", "item3"]              # 配列
-"simple string"                          # 文字列
-42                                       # 数値
-true                                     # 真偽値
-```
-
-### 使用例
-
-MCPクライアント（Claude Desktop、MCP Inspectorなど）では、ツールの`input`引数にJSONオブジェクトを渡します：
-
-**1. 通常の値（推奨）:**
+#### 基本構造
 ```json
 {
-  "text": "これは要約したい長いテキストです...",
-  "max_length": 200
+  "parameter_name": {
+    "type": "value" | "file",
+    "data": "actual_data_or_file_path",
+    "format": "text" | "json" | "yaml" | "csv" | "lines",  // fileタイプのみ
+    "encoding": "utf-8" | "shift_jis" | "euc-jp"           // fileタイプのみ
+  }
 }
 ```
 
-**2. オプション引数省略（デフォルト値適用）:**
+#### 直接値の例
 ```json
 {
-  "text": "これは要約したい長いテキストです..."
-}
-```
-※ `max_length`は自動的にデフォルト値（200）が適用されます
-
-**3. 直接JSON値:**
-```json
-{
-  "text": "これは要約したい長いテキストです...",
-  "max_length": 150
-}
-```
-
-**4. @file:プレフィックス（ファイルから読み込み）:**
-```json
-{
-  "text": "@file:/path/to/input.txt",
-  "max_length": 200
+  "message": {
+    "type": "value",
+    "data": "Hello, World!"
+  },
+  "count": {
+    "type": "value", 
+    "data": 42
+  },
+  "items": {
+    "type": "value",
+    "data": ["apple", "banana", "cherry"]
+  }
 }
 ```
 
-**5. 複合例（ファイル読み込み + 直接値）:**
+#### ファイル入力の例
 ```json
 {
-  "theme": "@file:/path/to/theme.json:json",
-  "target_audience": "データサイエンティスト",
-  "word_count": 1500
+  "document": {
+    "type": "file",
+    "data": "/path/to/document.txt",
+    "format": "text",
+    "encoding": "utf-8"
+  },
+  "config": {
+    "type": "file",
+    "data": "/path/to/config.json",
+    "format": "json"
+  },
+  "dataset": {
+    "type": "file", 
+    "data": "/path/to/data.csv",
+    "format": "csv",
+    "encoding": "shift_jis"
+  }
 }
 ```
+
+#### 混合例（直接値とファイル）
+```json
+{
+  "theme": {
+    "type": "file",
+    "data": "/path/to/theme.json",
+    "format": "json"
+  },
+  "target_audience": {
+    "type": "value",
+    "data": "データサイエンティスト"
+  },
+  "word_count": {
+    "type": "value",
+    "data": 1500
+  }
+}
+```
+
+
+## 実践的な使用例
+
+MCPクライアント（Claude Desktop、MCP Inspectorなど）での実際の使用例：
+
+### テキスト要約ワークフローの例
+
+#### ファイル入力の場合
+```json
+{
+  "text": {
+    "type": "file",
+    "data": "/documents/report.txt", 
+    "format": "text",
+    "encoding": "utf-8"
+  },
+  "max_length": {
+    "type": "value",
+    "data": 200
+  }
+}
+```
+
+#### 直接値入力の場合
+```json
+{
+  "text": {
+    "type": "value",
+    "data": "これは要約したい長いテキストです..."
+  },
+  "max_length": {
+    "type": "value",
+    "data": 200
+  }
+}
+```
+
+### 複雑なワークフローの例
+
+#### 複合入力
+```json
+{
+  "document": {
+    "type": "file",
+    "data": "/documents/contract.pdf",
+    "format": "text"
+  },
+  "template": {
+    "type": "file", 
+    "data": "/templates/analysis_template.json",
+    "format": "json"
+  },
+  "analysis_type": {
+    "type": "value",
+    "data": "legal_review"
+  },
+  "include_recommendations": {
+    "type": "value",
+    "data": true
+  }
+}
+```
+
 
 ## GitHub Copilot統合での使用例
 
@@ -381,7 +437,7 @@ output:
 ```
 
 **実行時:**
-- input: `{"document": "@file:/path/to/large_document.pdf:text", "analysis_type": "comprehensive"}`
+- input: `{"document": {"type": "file", "data": "/path/to/large_document.pdf", "format": "text"}, "analysis_type": {"type": "value", "data": "comprehensive"}}`
 - output_file_path: `"/reports/analysis_result.txt"`
 
 **応答:** `"✅ Results saved to: /absolute/path/to/reports/analysis_result.txt"`
@@ -444,7 +500,7 @@ output:
 ```
 
 **Claude Desktop での使用:**
-- input: `{"@file:document": "/documents/annual_report.pdf:text", "analysis_depth": "comprehensive"}`
+- input: `{"document": {"type": "file", "data": "/documents/annual_report.pdf", "format": "text"}, "analysis_depth": {"type": "value", "data": "comprehensive"}}`
 - output_file_path: `"/analysis/report_2024.txt"`
 
 #### 例2: 自動バッチ処理
@@ -455,7 +511,7 @@ name: "data_batch_processor"
 ```
 
 **使用:**
-- input: `{"@file:dataset": "/data/large_dataset.csv:csv", "processing_type": "full_analysis"}`
+- input: `{"dataset": {"type": "file", "data": "/data/large_dataset.csv", "format": "csv"}, "processing_type": {"type": "value", "data": "full_analysis"}}`
 
 **自動応答（75KB出力の場合）:**
 `"🔄 Large output detected (76,543 characters). Results automatically saved to: /absolute/path/to/mcp_outputs/data_batch_processor_1640995200000.txt"`

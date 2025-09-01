@@ -32,7 +32,8 @@ class PublicRepoSyncer:
         """設定ファイルを読み込む"""
         try:
             with open(self.config_path, encoding="utf-8") as f:
-                return yaml.safe_load(f)
+                config = yaml.safe_load(f)
+                return config if config is not None else {}
         except FileNotFoundError:
             raise FileNotFoundError(f"設定ファイルが見つかりません: {self.config_path}") from None
         except yaml.YAMLError as e:
@@ -137,7 +138,7 @@ class PublicRepoSyncer:
             self.logger.error(f"コピー失敗: {relative_path} - {e}")
             return False
 
-    def _create_public_gitignore(self, dry_run: bool = False):
+    def _create_public_gitignore(self, dry_run: bool = False) -> None:
         """公開用.gitignoreファイルを作成"""
         gitignore_content = """# Byte-compiled / optimized / DLL files
 __pycache__/
@@ -279,7 +280,7 @@ bakufu.yml.local
         return True
 
 
-def main():
+def main() -> None:
     """メイン関数"""
     parser = argparse.ArgumentParser(
         description="内部リポジトリから公開用リポジトリへファイルを同期します"

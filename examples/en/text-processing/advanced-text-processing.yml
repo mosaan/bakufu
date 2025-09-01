@@ -157,10 +157,6 @@ output:
           "xml_extract",
           "regex_extract with named groups", 
           "split",
-          "array_filter",
-          "array_transform",
-          "array_aggregate", 
-          "array_sort",
           "select_item",
           "format",
           "validate"

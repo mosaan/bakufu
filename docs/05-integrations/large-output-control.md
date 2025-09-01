@@ -30,7 +30,7 @@ output:
 MCPツールレベルで`input`と`output_file_path`を並列引数として指定：
 
 **引数:**
-- input: `{"document": "@file:/path/to/large_document.pdf:text", "analysis_type": "comprehensive"}`
+- input: `{"document": {"type": "file", "data": "/path/to/large_document.pdf", "format": "text"}, "analysis_type": {"type": "value", "data": "comprehensive"}}`
 - output_file_path: `"/reports/analysis_result.txt"`
 
 **応答:** `"✅ Results saved to: /absolute/path/to/reports/analysis_result.txt"`
@@ -58,7 +58,7 @@ mcp_auto_file_output_dir: "./mcp_outputs"
 通常のワークフロー実行で、出力サイズが閾値を超えた場合に自動処理：
 
 **引数:**
-- input: `{"@file:dataset": "/data/large_dataset.csv:csv", "processing_type": "full_analysis"}`
+- input: `{"dataset": {"type": "file", "data": "/data/large_dataset.csv", "format": "csv"}, "processing_type": {"type": "value", "data": "full_analysis"}}`
 
 **応答（75KB出力の場合）:**
 `"🔄 Large output detected (76,543 characters). Results automatically saved to: ./mcp_outputs/data_batch_processor_1640995200000.txt"`
@@ -142,13 +142,13 @@ output:
 ```
 
 **使用:**
-- input: `{"@file:contract": "/legal/contract.pdf:text", "analysis_type": "compliance"}`
+- input: `{"contract": {"type": "file", "data": "/legal/contract.pdf", "format": "text"}, "analysis_type": {"type": "value", "data": "compliance"}}`
 - output_file_path: `"/legal/analysis/contract_analysis.txt"`
 
 ### 例2: データセットの統計分析
 
 **使用:**
-- input: `{"@file:data": "/data/sales_2024.csv:csv", "metrics": ["revenue", "growth"]}`
+- input: `{"data": {"type": "file", "data": "/data/sales_2024.csv", "format": "csv"}, "metrics": {"type": "value", "data": ["revenue", "growth"]}}`
 
 **自動応答（大容量の場合）:**
 `"🔄 Large output detected (45,832 characters). Results automatically saved to: /absolute/path/to/mcp_outputs/data_analyzer_1704067200000.txt"`
@@ -156,7 +156,7 @@ output:
 ### 例3: ソースコードレビュー
 
 **使用:**
-- input: `{"@file:code": "/src/main.py:text", "review_level": "comprehensive"}`
+- input: `{"code": {"type": "file", "data": "/src/main.py", "format": "text"}, "review_level": {"type": "value", "data": "comprehensive"}}`
 - output_file_path: `"/reviews/main_py_review.md"`
 
 ## セキュリティ考慮事項
@@ -265,8 +265,8 @@ async def process_large_document():
 ## 関連ドキュメント
 
 - [MCP統合](mcp-integration.md) - MCP統合の全体概要
-- [設定リファレンス](../08-reference/configuration.md) - 詳細な設定オプション
-- [セキュリティガイド](../08-reference/security.md) - セキュリティのベストプラクティス
+- [設定リファレンス](../07-reference/configuration.md) - 詳細な設定オプション
+- [セキュリティガイド](../07-reference/security.md) - セキュリティのベストプラクティス
 
 ---
 

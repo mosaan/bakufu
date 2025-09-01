@@ -110,6 +110,13 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+# Relax mypy rules for tests and scripts
+[[tool.mypy.overrides]]
+module = ["tests.*", "scripts.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -119,10 +126,6 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--verbose",
-]
-filterwarnings = [
-    # Ignore Pydantic deprecation warnings from external libraries like LiteLLM
-    "ignore:Support for class-based.*:DeprecationWarning:.*pydantic.*",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

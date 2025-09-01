@@ -1,0 +1,143 @@
+name: format_step_examples
+description: Jinja2 template formatting step examples demonstrating various use cases
+version: "1.0"
+
+input_parameters:
+  - name: user_name
+    type: string
+    required: true
+    description: "Name of the user"
+  - name: user_age
+    type: integer
+    required: false
+    default: 25
+    description: "Age of the user"
+  - name: product_list
+    type: array
+    required: false
+    default: []
+    description: "List of products"
+
+steps:
+  # Basic template formatting
+  - id: simple_greeting
+    type: text_process
+    method: format
+    template: "Hello {{ user_name }}! You are {{ user_age }} years old."
+    input: "dummy"  # Not used for format method, but required by base class
+
+  # Template with conditional logic
+  - id: conditional_message
+    type: text_process
+    method: format
+    template: |
+      {% if user_age >= 18 %}
+      Welcome, {{ user_name }}! You are an adult.
+      {% else %}
+      Hi {{ user_name }}! You are still a minor.
+      {% endif %}
+    input: "dummy"
+
+  # Generate mock product data for demonstration
+  - id: generate_products
+    type: text_process
+    method: parse_as_json
+    input: |
+      [
+        {"name": "Apple", "price": 100, "category": "fruit"},
+        {"name": "Banana", "price": 150, "category": "fruit"},
+        {"name": "Cherry", "price": 200, "category": "fruit"},
+        {"name": "Laptop", "price": 80000, "category": "electronics"},
+        {"name": "Mouse", "price": 2000, "category": "electronics"}
+      ]
+
+  # Advanced template with loops and filters
+  - id: product_report
+    type: text_process
+    method: format
+    template: |
+      Product Report for {{ user_name }}
+      ===================================
+      
+      {% if steps.generate_products.result | length > 0 %}
+      Found {{ steps.generate_products.result | length }} products:
+      
+      {% for item in steps.generate_products.result %}
+      {{ loop.index }}. {{ item.name }}
+         Category: {{ item.category | title }}
+         Price: {{ item.price | tojson }}円
+         {% if item.price > 10000 %}
+         ** High-value item **
+         {% endif %}
+      {% endfor %}
+      
+      Summary by Category:
+      {% for category in steps.generate_products.result | groupby('category') %}
+      - {{ category.grouper | title }}: {{ category.list | length }} items
+      {% endfor %}
+      
+      Total Value: {{ steps.generate_products.result | sum(attribute='price') }}円
+      Average Price: {{ (steps.generate_products.result | sum(attribute='price') / steps.generate_products.result | length) | round }}円
+      {% else %}
+      No products found.
+      {% endif %}
+    input: "dummy"
+
+  # Template with step result references
+  - id: step_reference_example
+    type: text_process
+    method: format
+    template: |
+      Step Results Summary:
+      - Simple greeting: {{ steps.simple_greeting.result }}
+      - Conditional message: {{ steps.conditional_message.result | replace('\n', ' ') }}
+      - Product count: {{ steps.generate_products.result | length }}
+    input: "dummy"
+
+  # Template with complex data manipulation
+  - id: advanced_formatting
+    type: text_process
+    method: format
+    template: |
+      {% macro format_price(price) -%}
+      {% if price >= 10000 -%}
+      {{ "%.1f"|format(price/10000) }}万円
+      {%- else -%}
+      {{ price }}円
+      {%- endif -%}
+      {% endmacro -%}
+      
+      {% macro product_summary(products) -%}
+      {% for product in products -%}
+      - {{ product.name }}: {{ format_price(product.price) }}
+      {% endfor -%}
+      {% endmacro -%}
+      
+      Advanced Product Summary for {{ user_name }}:
+      
+      {% set expensive_items = steps.generate_products.result | selectattr('price', '>', 5000) | list %}
+      {% set cheap_items = steps.generate_products.result | selectattr('price', '<=', 5000) | list %}
+      
+      Expensive Items (>5000円):
+      {{ product_summary(expensive_items) }}
+      
+      Affordable Items (≤5000円):
+      {{ product_summary(cheap_items) }}
+      
+      Shopping Recommendation:
+      {% if user_age < 25 %}
+      Focus on affordable items for budget-conscious shopping.
+      {% else %}
+      Consider investing in quality expensive items.
+      {% endif %}
+    input: "dummy"
+
+  # Template with current date/time (using template engine globals)
+  - id: timestamp_example
+    type: text_process
+    method: format
+    template: |
+      Report generated on: {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+      User: {{ user_name }}
+      Processing completed at: {{ now().isoformat() }}
+    input: "dummy"

@@ -460,124 +460,116 @@ class TextSplitter:
         return chunks
 
 
-class TextExtractor:
-    """Unified text extraction utilities"""
-
-    @staticmethod
-    def extract_by_regex(text: str, pattern: str, group: int = 0, flags: int = 0) -> list[str]:
-        """Extract text using regex pattern"""
-        matches = re.finditer(pattern, text, flags)
-        return [match.group(group) for match in matches]
-
-    @staticmethod
-    def extract_between_markers(
-        text: str, start_marker: str, end_marker: str, include_markers: bool = False
-    ) -> list[str]:
-        """Extract text between start and end markers
-
-        Finds the innermost complete pairs when dealing with nested markers.
-        For incomplete pairs, extracts the most complete available pairs.
-        """
-        results = []
-
-        # Find all start and end marker positions
-        start_positions = []
-        end_positions = []
-
-        pos = 0
-        while pos < len(text):
-            start_pos = text.find(start_marker, pos)
-            if start_pos == -1:
-                break
-            start_positions.append(start_pos)
-            pos = start_pos + 1
-
-        pos = 0
-        while pos < len(text):
-            end_pos = text.find(end_marker, pos)
-            if end_pos == -1:
-                break
-            end_positions.append(end_pos)
-            pos = end_pos + 1
-
-        # Match markers to find proper pairs
-        used_starts = set()
-        used_ends = set()
-
-        # For each end marker, find the closest preceding start marker
-        for end_idx in end_positions:
-            best_start_idx = -1
-            for start_idx in start_positions:
-                if (
-                    start_idx < end_idx
-                    and start_idx not in used_starts
-                    and (best_start_idx == -1 or start_idx > best_start_idx)
-                ):
-                    best_start_idx = start_idx
-
-            if best_start_idx != -1:
-                used_starts.add(best_start_idx)
-                used_ends.add(end_idx)
-
-                if include_markers:
-                    extracted = text[best_start_idx : end_idx + len(end_marker)]
-                else:
-                    extracted = text[best_start_idx + len(start_marker) : end_idx]
-
-                results.append(extracted)
-
-        return results
+def extract_by_regex(text: str, pattern: str, group: int = 0, flags: int = 0) -> list[str]:
+    """Extract text using regex pattern"""
+    matches = re.finditer(pattern, text, flags)
+    return [match.group(group) for match in matches]
 
 
-class TextValidator:
-    """Text validation utilities"""
+def extract_between_markers(
+    text: str, start_marker: str, end_marker: str, include_markers: bool = False
+) -> list[str]:
+    """Extract text between start and end markers
 
-    @staticmethod
-    def is_valid_json(text: str) -> bool:
-        """Check if text is valid JSON"""
-        try:
-            json.loads(text.strip())
-            return True
-        except json.JSONDecodeError:
-            return False
+    Finds the innermost complete pairs when dealing with nested markers.
+    For incomplete pairs, extracts the most complete available pairs.
+    """
+    results = []
 
-    @staticmethod
-    def is_valid_yaml(text: str) -> bool:
-        """Check if text is valid YAML"""
-        try:
-            yaml.safe_load(text.strip())
-            return True
-        except yaml.YAMLError:
-            return False
+    # Find all start and end marker positions
+    start_positions = []
+    end_positions = []
 
-    @staticmethod
-    def detect_delimiter(text: str) -> str:
-        """Detect CSV delimiter from text sample"""
-        try:
-            sniffer = csv.Sniffer()
-            sample = text[:1024]
-            delimiter = sniffer.sniff(sample).delimiter
+    pos = 0
+    while pos < len(text):
+        start_pos = text.find(start_marker, pos)
+        if start_pos == -1:
+            break
+        start_positions.append(start_pos)
+        pos = start_pos + 1
 
-            # Only accept common CSV delimiters from the sniffer
-            if delimiter in [",", ";", "\t", "|"]:
-                return delimiter
+    pos = 0
+    while pos < len(text):
+        end_pos = text.find(end_marker, pos)
+        if end_pos == -1:
+            break
+        end_positions.append(end_pos)
+        pos = end_pos + 1
 
-            # If sniffer detected something unusual, fall back to common delimiters
-            for common_delimiter in [",", ";", "\t", "|"]:
-                if common_delimiter in sample:
-                    # Check if this delimiter creates consistent columns across lines
-                    lines = sample.split("\n")[:3]  # Check first few lines
-                    if len(lines) > 1:
-                        first_count = lines[0].count(common_delimiter)
-                        if first_count > 0 and all(
-                            line.count(common_delimiter) == first_count
-                            for line in lines[1:]
-                            if line.strip()
-                        ):
-                            return common_delimiter
-                    elif common_delimiter in lines[0]:
+    # Match markers to find proper pairs
+    used_starts = set()
+    used_ends = set()
+
+    # For each end marker, find the closest preceding start marker
+    for end_idx in end_positions:
+        best_start_idx = -1
+        for start_idx in start_positions:
+            if (
+                start_idx < end_idx
+                and start_idx not in used_starts
+                and (best_start_idx == -1 or start_idx > best_start_idx)
+            ):
+                best_start_idx = start_idx
+
+        if best_start_idx != -1:
+            used_starts.add(best_start_idx)
+            used_ends.add(end_idx)
+
+            if include_markers:
+                extracted = text[best_start_idx : end_idx + len(end_marker)]
+            else:
+                extracted = text[best_start_idx + len(start_marker) : end_idx]
+
+            results.append(extracted)
+
+    return results
+
+
+def is_valid_json(text: str) -> bool:
+    """Check if text is valid JSON"""
+    try:
+        json.loads(text.strip())
+        return True
+    except json.JSONDecodeError:
+        return False
+
+
+def is_valid_yaml(text: str) -> bool:
+    """Check if text is valid YAML"""
+    try:
+        yaml.safe_load(text.strip())
+        return True
+    except yaml.YAMLError:
+        return False
+
+
+def detect_delimiter(text: str) -> str:
+    """Detect CSV delimiter from text sample"""
+    try:
+        sniffer = csv.Sniffer()
+        sample = text[:1024]
+        delimiter = sniffer.sniff(sample).delimiter
+
+        # Only accept common CSV delimiters from the sniffer
+        if delimiter in [",", ";", "\t", "|"]:
+            return delimiter
+
+        # If sniffer detected something unusual, fall back to common delimiters
+        for common_delimiter in [",", ";", "\t", "|"]:
+            if common_delimiter in sample:
+                # Check if this delimiter creates consistent columns across lines
+                lines = sample.split("\n")[:3]  # Check first few lines
+                if len(lines) > 1:
+                    first_count = lines[0].count(common_delimiter)
+                    if first_count > 0 and all(
+                        line.count(common_delimiter) == first_count
+                        for line in lines[1:]
+                        if line.strip()
+                    ):
                         return common_delimiter
+                elif common_delimiter in lines[0]:
+                    return common_delimiter
 
-            return ","  # Default to comma
-        except Exception:
-            return ","  # Default to comma
+        return ","  # Default to comma
+    except Exception:
+        return ","  # Default to comma

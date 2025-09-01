@@ -1,0 +1,271 @@
+name: "AI Parameters Showcase"
+description: "Demonstration of advanced LiteLLM parameter features"
+version: "1.0"
+
+input_parameters:
+  - name: "text"
+    type: "string"
+    description: "Text to analyze"
+    default: "Today is a beautiful day. I'm excited about starting this new project."
+  - name: "task_type"
+    type: "string"
+    description: "Type of task to perform"
+    default: "sentiment_analysis"
+
+steps:
+  # 1. Structured Output - JSON Schema
+  - id: "structured_sentiment_analysis"
+    type: "ai_call"
+    prompt: |
+      Please perform sentiment analysis on the following text:
+      
+      Text: {{ text }}
+      
+      Respond strictly in the specified JSON format.
+    ai_params:
+      response_format:
+        type: "json_schema"
+        json_schema:
+          name: "sentiment_analysis"
+          schema:
+            type: "object"
+            properties:
+              sentiment:
+                type: "string"
+                enum: ["positive", "negative", "neutral"]
+                description: "Sentiment classification"
+              confidence:
+                type: "number"
+                minimum: 0
+                maximum: 1
+                description: "Confidence score (0-1)"
+              keywords:
+                type: "array"
+                items:
+                  type: "string"
+                description: "Keywords expressing sentiment"
+              explanation:
+                type: "string"
+                description: "Explanation of the sentiment determination"
+            required: ["sentiment", "confidence", "keywords", "explanation"]
+
+  # 2. Advanced Sampling Control
+  - id: "creative_rewrite"
+    type: "ai_call"
+    prompt: |
+      Please creatively rewrite the following text:
+      
+      Original text: {{ text }}
+      
+      Make it more expressive and poetic.
+    ai_params:
+      temperature: 0.9        # High creativity
+      top_p: 0.95            # Top-P sampling
+      presence_penalty: 0.6   # Encourage new topics
+      frequency_penalty: 0.3  # Reduce repetition
+
+  # 3. Function Calling - Mock Weather API
+  - id: "weather_assistant"
+    type: "ai_call"
+    prompt: |
+      A user asked the following question:
+      
+      "{{ text }}"
+      
+      If this question relates to weather information, please retrieve weather for the appropriate location.
+      If not related, provide a normal response.
+    ai_params:
+      tools:
+        - type: "function"
+          function:
+            name: "get_weather"
+            description: "Get current weather information for a specified location"
+            parameters:
+              type: "object"
+              properties:
+                location:
+                  type: "string"
+                  description: "City or region name (e.g., Tokyo, New York)"
+                unit:
+                  type: "string"
+                  enum: ["celsius", "fahrenheit"]
+                  default: "celsius"
+                  description: "Temperature unit"
+                include_forecast:
+                  type: "boolean"
+                  default: false
+                  description: "Whether to include forecast"
+              required: ["location"]
+        - type: "function"
+          function:
+            name: "get_weather_forecast"
+            description: "Get weather forecast for a specified location"
+            parameters:
+              type: "object"
+              properties:
+                location:
+                  type: "string"
+                  description: "City or region name"
+                days:
+                  type: "integer"
+                  minimum: 1
+                  maximum: 7
+                  default: 3
+                  description: "Number of forecast days"
+              required: ["location"]
+      tool_choice: "auto"
+
+  # 4. Output Control and Stop Sequences
+  - id: "controlled_generation"
+    type: "ai_call"
+    prompt: |
+      Please create a brief summary based on the following text:
+      
+      {{ text }}
+      
+      End your summary with "---END---".
+    ai_params:
+      stop: ["---END---", "STOP", "\n\n\n"]  # Stop sequences
+      max_tokens: 150                        # Limit to short output
+      temperature: 0.3                       # Focus on consistency
+
+  # 5. Deterministic Output (Reproducible)
+  - id: "deterministic_analysis"
+    type: "ai_call"
+    prompt: |
+      Please objectively analyze the following text:
+      
+      {{ text }}
+      
+      Analyze from these perspectives:
+      1. Writing style characteristics
+      2. Vocabulary usage patterns
+      3. Sentence structure
+    ai_params:
+      temperature: 0.0   # Completely deterministic
+      seed: 42          # Reproducible seed value
+      top_p: 1.0        # Consider all tokens
+
+  # 6. Token Bias and Logit Control
+  - id: "biased_generation"
+    type: "ai_call"
+    prompt: |
+      Please comment on the following text from a positive perspective:
+      
+      {{ text }}
+    ai_params:
+      temperature: 0.7
+      # Promote/suppress specific words (actual token IDs need adjustment)
+      logit_bias:
+        "1646": 20    # "good" promotion
+        "3652": 20    # "excellent" promotion
+        "2134": -50   # "bad" suppression
+        "2732": -50   # "terrible" suppression
+
+  # 7. Provider-Specific Parameters (Anthropic)
+  - id: "anthropic_specific"
+    type: "ai_call"
+    provider: "anthropic/claude-3-sonnet"
+    prompt: |
+      Please analyze the following text:
+      
+      {{ text }}
+    ai_params:
+      top_k: 40                           # Anthropic-specific
+      system: "You are a helpful and accurate AI assistant. Always strive to provide polite and constructive responses."
+
+  # 8. Complex Parameter Combinations
+  - id: "complex_parameters"
+    type: "ai_call"
+    prompt: |
+      Task type: {{ task_type }}
+      Target text: {{ text }}
+      
+      Please perform appropriate processing according to the task type above.
+    ai_params:
+      # Sampling control
+      temperature: 0.6
+      top_p: 0.9
+      
+      # Penalty control
+      presence_penalty: 0.1
+      frequency_penalty: 0.1
+      
+      # Output control
+      max_tokens: 300
+      stop: ["[END]", "---"]
+      
+      # Reproducibility
+      seed: 123
+      
+      # User identification (for usage tracking)
+      user: "ai_parameters_demo"
+
+  # 9. JSON Output Mode (Simple)
+  - id: "simple_json_output"
+    type: "ai_call"
+    prompt: |
+      Please extract information from the following text and output in JSON format:
+      
+      {{ text }}
+      
+      Output in this format:
+      {
+        "main_topic": "main topic",
+        "emotions": ["emotion1", "emotion2"],
+        "key_phrases": ["key phrase1", "key phrase2"]
+      }
+    ai_params:
+      response_format:
+        type: "json_object"
+
+  # 10. Error Handling and Retry Settings
+  - id: "robust_call"
+    type: "ai_call"
+    prompt: |
+      As a final comprehensive analysis, please integrate the results so far:
+      
+      Original text: {{ text }}
+      Sentiment analysis result: {{ steps.structured_sentiment_analysis.sentiment }}
+      Creative rewrite: {{ steps.creative_rewrite[:100] }}...
+      
+      Please provide your overall observations.
+    max_auto_retry_attempts: 5  # Bakufu-specific retry
+    ai_params:
+      temperature: 0.4
+      max_tokens: 200
+      # LiteLLM level settings
+      timeout: 30
+      max_retries: 3
+
+output:
+  format: "json"
+  template: |
+    {
+      "original_text": "{{ text }}",
+      "task_type": "{{ task_type }}",
+      "results": {
+        "structured_analysis": {{ steps.structured_sentiment_analysis | tojson }},
+        "creative_rewrite": {{ steps.creative_rewrite | tojson }},
+        "weather_response": {{ steps.weather_assistant | tojson }},
+        "controlled_summary": {{ steps.controlled_generation | tojson }},
+        "deterministic_analysis": {{ steps.deterministic_analysis | tojson }},
+        "biased_comment": {{ steps.biased_generation | tojson }},
+        "anthropic_analysis": {{ steps.anthropic_specific | tojson }},
+        "complex_result": {{ steps.complex_parameters | tojson }},
+        "json_extraction": {{ steps.simple_json_output | tojson }},
+        "final_synthesis": {{ steps.robust_call | tojson }}
+      },
+      "parameter_demonstrations": {
+        "json_schema": "Used in structured_sentiment_analysis",
+        "sampling_control": "Used temperature/top_p/penalties in creative_rewrite",
+        "function_calling": "Used tools/tool_choice in weather_assistant", 
+        "output_control": "Used stop/max_tokens in controlled_generation",
+        "deterministic": "Used temperature=0/seed in deterministic_analysis",
+        "logit_bias": "Used token promotion/suppression in biased_generation",
+        "provider_specific": "Used top_k/system in anthropic_specific",
+        "complex_combination": "Combined multiple parameters in complex_parameters",
+        "json_mode": "Used response_format=json_object in simple_json_output",
+        "error_handling": "Used retry/timeout settings in robust_call"
+      }
+    }

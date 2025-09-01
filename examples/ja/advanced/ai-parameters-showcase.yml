@@ -1,0 +1,271 @@
+name: "AI Parameters Showcase"
+description: "LiteLLMの高度なパラメータ機能のデモンストレーション"
+version: "1.0"
+
+input_parameters:
+  - name: "text"
+    type: "string"
+    description: "分析対象のテキスト"
+    default: "今日は良い天気です。新しいプロジェクトが始まって期待しています。"
+  - name: "task_type"
+    type: "string" 
+    description: "実行するタスクタイプ"
+    default: "sentiment_analysis"
+
+steps:
+  # 1. 構造化出力 - JSON Schema
+  - id: "structured_sentiment_analysis"
+    type: "ai_call"
+    prompt: |
+      以下のテキストの感情分析を行ってください：
+      
+      テキスト: {{ text }}
+      
+      必ず指定されたJSON形式で回答してください。
+    ai_params:
+      response_format:
+        type: "json_schema"
+        json_schema:
+          name: "sentiment_analysis"
+          schema:
+            type: "object"
+            properties:
+              sentiment:
+                type: "string"
+                enum: ["positive", "negative", "neutral"]
+                description: "感情の分類"
+              confidence:
+                type: "number"
+                minimum: 0
+                maximum: 1
+                description: "信頼度（0-1）"
+              keywords:
+                type: "array"
+                items:
+                  type: "string"
+                description: "感情を表すキーワード"
+              explanation:
+                type: "string"
+                description: "判定理由の説明"
+            required: ["sentiment", "confidence", "keywords", "explanation"]
+
+  # 2. 高度なサンプリング制御
+  - id: "creative_rewrite"
+    type: "ai_call"
+    prompt: |
+      以下のテキストを創造的に書き直してください：
+      
+      元のテキスト: {{ text }}
+      
+      より表現豊かで詩的な文章にしてください。
+    ai_params:
+      temperature: 0.9        # 高い創造性
+      top_p: 0.95            # トップP サンプリング
+      presence_penalty: 0.6   # 新しい話題を促進
+      frequency_penalty: 0.3  # 繰り返しを削減
+
+  # 3. Function Calling - 架空の天気API
+  - id: "weather_assistant"
+    type: "ai_call"
+    prompt: |
+      ユーザーから以下の質問がありました：
+      
+      「{{ text }}」
+      
+      この質問に天気情報が関連する場合は、適切な場所の天気を取得してください。
+      関連しない場合は、通常の回答をしてください。
+    ai_params:
+      tools:
+        - type: "function"
+          function:
+            name: "get_weather"
+            description: "指定された場所の現在の天気情報を取得"
+            parameters:
+              type: "object"
+              properties:
+                location:
+                  type: "string"
+                  description: "都市名または地域名（例：東京、大阪）"
+                unit:
+                  type: "string"
+                  enum: ["celsius", "fahrenheit"]
+                  default: "celsius"
+                  description: "温度の単位"
+                include_forecast:
+                  type: "boolean"
+                  default: false
+                  description: "予報も含めるかどうか"
+              required: ["location"]
+        - type: "function"
+          function:
+            name: "get_weather_forecast"
+            description: "指定された場所の天気予報を取得"
+            parameters:
+              type: "object"
+              properties:
+                location:
+                  type: "string"
+                  description: "都市名または地域名"
+                days:
+                  type: "integer"
+                  minimum: 1
+                  maximum: 7
+                  default: 3
+                  description: "予報日数"
+              required: ["location"]
+      tool_choice: "auto"
+
+  # 4. 出力制御とストップシーケンス
+  - id: "controlled_generation"
+    type: "ai_call"
+    prompt: |
+      以下のテキストに基づいて、短い要約を作成してください：
+      
+      {{ text }}
+      
+      要約の後に「---終了---」と記載してください。
+    ai_params:
+      stop: ["---終了---", "END", "\n\n\n"]  # 停止シーケンス
+      max_tokens: 150                      # 短い出力に制限
+      temperature: 0.3                     # 一貫性重視
+
+  # 5. 決定論的出力（再現可能）
+  - id: "deterministic_analysis"
+    type: "ai_call"
+    prompt: |
+      以下のテキストを客観的に分析してください：
+      
+      {{ text }}
+      
+      以下の観点から分析してください：
+      1. 文体の特徴
+      2. 使用されている語彙の傾向
+      3. 文章の構造
+    ai_params:
+      temperature: 0.0   # 完全に決定論的
+      seed: 42          # 再現可能なシード値
+      top_p: 1.0        # 全トークンを考慮
+
+  # 6. トークンバイアスとロジット制御
+  - id: "biased_generation"
+    type: "ai_call"
+    prompt: |
+      以下のテキストについて、ポジティブな視点でコメントしてください：
+      
+      {{ text }}
+    ai_params:
+      temperature: 0.7
+      # 特定の単語を促進/抑制（実際のトークンIDは要調整）
+      logit_bias:
+        "1169": 20    # "良い" を促進
+        "1726": 20    # "素晴らしい" を促進
+        "1985": -50   # "悪い" を抑制
+        "2761": -50   # "ひどい" を抑制
+
+  # 7. プロバイダー固有パラメータ（Anthropic）
+  - id: "anthropic_specific"
+    type: "ai_call"
+    provider: "anthropic/claude-3-sonnet"
+    prompt: |
+      以下のテキストについて分析してください：
+      
+      {{ text }}
+    ai_params:
+      top_k: 40                           # Anthropic固有
+      system: "あなたは親切で正確なAIアシスタントです。常に丁寧で建設的な回答を心がけてください。"
+
+  # 8. 複合的なパラメータ組み合わせ
+  - id: "complex_parameters"
+    type: "ai_call"
+    prompt: |
+      タスクタイプ: {{ task_type }}
+      対象テキスト: {{ text }}
+      
+      上記のタスクタイプに応じて適切な処理を行ってください。
+    ai_params:
+      # サンプリング制御
+      temperature: 0.6
+      top_p: 0.9
+      
+      # ペナルティ制御
+      presence_penalty: 0.1
+      frequency_penalty: 0.1
+      
+      # 出力制御
+      max_tokens: 300
+      stop: ["[END]", "---"]
+      
+      # 再現性
+      seed: 123
+      
+      # ユーザー識別（使用量追跡用）
+      user: "ai_parameters_demo"
+
+  # 9. JSON出力モード（簡易版）
+  - id: "simple_json_output"
+    type: "ai_call"
+    prompt: |
+      以下のテキストから情報を抽出し、JSON形式で出力してください：
+      
+      {{ text }}
+      
+      以下の形式で出力してください：
+      {
+        "main_topic": "主要な話題",
+        "emotions": ["感情1", "感情2"],
+        "key_phrases": ["重要フレーズ1", "重要フレーズ2"]
+      }
+    ai_params:
+      response_format:
+        type: "json_object"
+
+  # 10. エラーハンドリングとリトライ設定
+  - id: "robust_call"
+    type: "ai_call"
+    prompt: |
+      最終的な総合分析として、これまでの結果を統合してください：
+      
+      元のテキスト: {{ text }}
+      感情分析結果: {{ steps.structured_sentiment_analysis.sentiment }}
+      創造的書き直し: {{ steps.creative_rewrite[:100] }}...
+      
+      総合的な所見をお聞かせください。
+    max_auto_retry_attempts: 5  # Bakufu固有の再試行
+    ai_params:
+      temperature: 0.4
+      max_tokens: 200
+      # LiteLLMレベルの設定
+      timeout: 30
+      max_retries: 3
+
+output:
+  format: "json"
+  template: |
+    {
+      "original_text": "{{ text }}",
+      "task_type": "{{ task_type }}",
+      "results": {
+        "structured_analysis": {{ steps.structured_sentiment_analysis | tojson }},
+        "creative_rewrite": {{ steps.creative_rewrite | tojson }},
+        "weather_response": {{ steps.weather_assistant | tojson }},
+        "controlled_summary": {{ steps.controlled_generation | tojson }},
+        "deterministic_analysis": {{ steps.deterministic_analysis | tojson }},
+        "biased_comment": {{ steps.biased_generation | tojson }},
+        "anthropic_analysis": {{ steps.anthropic_specific | tojson }},
+        "complex_result": {{ steps.complex_parameters | tojson }},
+        "json_extraction": {{ steps.simple_json_output | tojson }},
+        "final_synthesis": {{ steps.robust_call | tojson }}
+      },
+      "parameter_demonstrations": {
+        "json_schema": "structured_sentiment_analysis で使用",
+        "sampling_control": "creative_rewrite で temperature/top_p/penalties を使用",
+        "function_calling": "weather_assistant で tools/tool_choice を使用", 
+        "output_control": "controlled_generation で stop/max_tokens を使用",
+        "deterministic": "deterministic_analysis で temperature=0/seed を使用",
+        "logit_bias": "biased_generation で特定トークンの促進/抑制",
+        "provider_specific": "anthropic_specific で top_k/system を使用",
+        "complex_combination": "complex_parameters で複数パラメータ組み合わせ",
+        "json_mode": "simple_json_output で response_format=json_object",
+        "error_handling": "robust_call で retry/timeout 設定"
+      }
+    }

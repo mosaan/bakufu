@@ -53,69 +53,60 @@ instructions = """
     The server will return a message indicating where the file was saved (as absolute path).
     If automatic file saving fails, the full text output will be returned with a warning (no truncation).
     
-    ## Special Input Prefixes
+    ## Input Format - Structured Data Only
     
-    The Bakufu MCP Server supports powerful prefix-based input processing for flexible data handling.
-    if you want to change the input treatment, you can use the following prefixes in your input keys:
+    The Bakufu MCP Server uses a structured input format that is clear and easy to understand for LLMs.
     
-    ### @file: Prefix - File Content Loading
-    Syntax: `{"@file:<key>": "<path>:<format>:<encoding>"}`
-    
-    Supported formats:
-    - `json`: (default for `.json` files) JSON files parsed to objects
-    - `yaml`/`yml`: (default for `.yaml`/`.yml` files) YAML files parsed to objects
-    - `csv`: (default for `.csv` files) CSV files as array of dictionaries
-    - `tsv`: (default for `.tsv` files) TSV files as array of dictionaries
-    - `text`: (default for all other unknown file extensions) Plain text content as string
-    - `lines`: Text content as array of lines
-    
-    Examples:
-    - `{"@file:document": "/path/to/file.txt"}` (plain text, UTF-8)
-    - `{"@file:config": "/data/config.json:json"}` (JSON format)
-    - `{"@file:logs": "/logs/app.log:lines"}` (text lines array)
-    - `{"@file:data": "/data/report.csv:csv"}` (CSV as object array)
-    - `{"@file:content": "/path/file.txt:text:shift_jis"}` (specific encoding)
-
-    ### Direct JSON Values
-    You can pass JSON values directly without any special prefix.
-    
-    Examples:
-    - `{"settings": {"key": "value", "count": 42}}` (object)
-    - `{"items": ["item1", "item2", "item3"]}` (array)
-    - `{"message": "simple string"}` (string)
-    - `{"count": 42}` (number)
-    - `{"enabled": true}` (boolean)
-
-    ### Usage Examples
-    
-    **Basic Usage**:
+    ### Structured Input Format
+    Each parameter must use the following structure:
     ```json
     {
-        "@file:document": "/path/to/report.txt:text",
-        "settings": {"max_length": 200, "format": "summary"},
-        "@file:data": "/data/input.json:json"
+      "parameter_name": {
+        "type": "value" | "file",
+        "data": "actual_data_or_file_path",
+        "format": "text" | "json" | "yaml" | "csv" | "lines",  // for file type only
+        "encoding": "utf-8" | "shift_jis" | "euc-jp"           // for file type only
+      }
     }
     ```
     
-    **With File Output**:
+    ### Examples
+    
+    **Direct Values**:
     ```json
     {
-        "@file:document": "/path/to/report.txt:text",
-        "settings": {"max_length": 200, "format": "summary"}
+      "message": {"type": "value", "data": "Hello, World!"},
+      "count": {"type": "value", "data": 42},
+      "settings": {"type": "value", "data": {"key": "value"}}
     }
-    
-    And if you want to save large output to a file, use the separate output_file_path parameter:
-    - output_file_path: "/path/to/results.txt"
     ```
     
-    This syntax enables dynamic content loading, structured data input, and flexible output management, making workflows more powerful and scalable.
+    **File Inputs**:
+    ```json
+    {
+      "document": {"type": "file", "data": "/path/to/file.txt", "format": "text", "encoding": "utf-8"},
+      "config": {"type": "file", "data": "/data/config.json", "format": "json"},
+      "dataset": {"type": "file", "data": "/data/data.csv", "format": "csv"}
+    }
+    ```
+    
+    **Mixed Usage**:
+    ```json
+    {
+      "document": {"type": "file", "data": "/path/to/report.txt", "format": "text"},
+      "max_length": {"type": "value", "data": 200},
+      "format": {"type": "value", "data": "summary"}
+    }
+    ```
+    
+    This structured format ensures clarity and prevents input format errors when working with LLMs.
     """
 
 # Create FastMCP server instance
 mcp: FastMCP = FastMCP(
     name="bakufu-mcp-server",
     # description for the server.
-    # especially prefix treatment like "@file:" is important feature and we must explain it.
+    # structured input format is important feature and we must explain it.
     # these are handled by all dynamic tools.
     instructions=instructions,
 )
@@ -247,20 +238,21 @@ async def register_dynamic_workflow_tools() -> None:
 
             # Add input format information to description
             tool_description += "\n\nParameters:"
-            tool_description += (
-                "\n\n1. input (object): JSON object with workflow-specific parameters:"
-            )
+            tool_description += "\n\n1. input (object): JSON object with workflow-specific parameters using structured format:"
             if workflow.input_parameters:
                 for param in workflow.input_parameters:
                     required_text = " (required)" if param.required else " (optional)"
                     default_text = (
                         f" [default: {param.default}]" if param.default is not None else ""
                     )
-                    tool_description += (
-                        f"\n   - {param.name} ({param.type}){required_text}{default_text}"
-                    )
+                    tool_description += f"\n   - {param.name}: {{'type': 'value', 'data': <{param.type}>}}{required_text}{default_text}"
                     if param.description:
-                        tool_description += f": {param.description}"
+                        tool_description += f" - {param.description}"
+                tool_description += (
+                    "\n\nStructured Format Example:\n"
+                    '{"parameter": {"type": "value", "data": "your_value"}, '
+                    '"file_param": {"type": "file", "data": "/path/to/file", "format": "text"}}'
+                )
             else:
                 tool_description += (
                     "\n   - No workflow-specific parameters required (empty object: {})"

@@ -110,44 +110,43 @@ steps:
   # 高給与の従業員をフィルタリング（45万円以上）
   - id: "filter_high_salary"
     type: "text_process"
-    method: "array_filter"
+    method: "format"
     input: "{{ steps.parsed_employee_data }}"
-    condition: "int(item['給与']) >= 450000"
+    template: |
+      [{% for item in steps.parsed_employee_data if item.給与|int >= 450000 %}
+        {{ item | tojson }}{{ "," if not loop.last }}
+      {% endfor %}]
+    parse_as_json: true
     
   # 従業員名を抽出して変換
   - id: "get_employee_names"
     type: "text_process"
-    method: "array_transform"
+    method: "format"
     input: "{{ steps.parsed_employee_data }}"
-    transform_expression: "item['名前']"
+    template: "{{ steps.parsed_employee_data | map(attribute='名前') | list | tojson }}"
+    parse_as_json: true
     
   # 平均給与を計算
-  - id: "calculate_average_salary"
-    type: "text_process"
-    method: "array_transform"
-    input: "{{ steps.parsed_employee_data }}"
-    transform_expression: "int(item['給与'])"
-    
   - id: "average_salary"
     type: "text_process"
-    method: "array_aggregate"
-    input: "{{ steps.calculate_average_salary }}"
-    aggregate_operation: "avg"
+    method: "format"
+    input: "{{ steps.parsed_employee_data }}"
+    template: "{{ (steps.parsed_employee_data | map(attribute='給与') | map('int') | sum) / (steps.parsed_employee_data | length) }}"
     
   # 従業員数をカウント
   - id: "count_employees"
     type: "text_process"
-    method: "array_aggregate"
+    method: "format"
     input: "{{ steps.parsed_employee_data }}"
-    aggregate_operation: "count"
+    template: "{{ steps.parsed_employee_data | length }}"
     
   # 給与で降順ソート
   - id: "sort_by_salary"
     type: "text_process"
-    method: "array_sort"
+    method: "format"
     input: "{{ steps.parsed_employee_data }}"
-    sort_key: "給与"
-    sort_reverse: true
+    template: "{{ steps.parsed_employee_data | sort(attribute='給与', reverse=true) | tojson }}"
+    parse_as_json: true
     
   # 上位2名を選択
   - id: "top_salary_employees"
@@ -160,48 +159,22 @@ steps:
   - id: "format_report"
     type: "text_process"
     method: "format"
-    input: |
+    input: "Creating analysis report"
+    template: |
       ## 従業員分析レポート
       
-      **総従業員数**: {total_count}名
-      **平均給与**: {avg_salary:,.0f}円
-      **高給与者数**: {high_salary_count}名（45万円以上）
+      **総従業員数**: {{ steps.count_employees }}名
+      **平均給与**: {{ steps.average_salary | round | int | string | regex_replace('(\\d)(?=(\\d{3})+$)', '\\1,') }}円
+      **高給与者数**: {{ steps.filter_high_salary | length }}名（45万円以上）
       
       **給与上位者**:
-      {top_employees}
+      {{ steps.top_salary_employees | map(attribute='名前') | join(', ') }}
       
-      **抽出された日付**: {dates}
-      **プロジェクト予算**: {budget}
+      **抽出された日付**: {{ steps.extract_dates | join(', ') }}
+      **プロジェクト予算**: {{ steps.extract_amounts | join(', ') }}
       
-      分析実行日時: {timestamp}
-    values:
-      total_count: "{{ steps.count_employees }}"
-      avg_salary: "{{ steps.average_salary }}"
-      high_salary_count: "{{ steps.filter_high_salary | length }}"
-      top_employees: "{{ steps.top_salary_employees | map(attribute='名前') | join(', ') }}"
-      dates: "{{ steps.extract_dates | join(', ') }}"
-      budget: "{{ steps.extract_amounts | join(', ') }}"
-      timestamp: "{{ now().strftime('%Y年%m月%d日 %H:%M') }}"
+      分析実行日時: {{ now().strftime('%Y年%m月%d日 %H:%M') }}
       
-  # データ構造を検証
-  - id: "validate_employee_data"
-    type: "text_process"
-    method: "validate"
-    input: "{{ steps.parsed_employee_data[0] if steps.parsed_employee_data else {} }}"
-    schema:
-      type: "object"
-      required: ["名前", "年齢", "職業", "給与"]
-      properties:
-        名前:
-          type: "string"
-          minLength: 1
-        年齢:
-          type: "string"
-        職業:
-          type: "string"
-        給与:
-          type: "string"
-          pattern: "^\\d+$"
 
 output:
   format: "text"
@@ -222,7 +195,7 @@ output:
     - {{ employee.名前 }} ({{ employee.年齢 }}歳) - {{ employee.職業 }} - {{ employee.給与 }}円
     {% endfor %}
     
-    **検証結果**: {% if steps.validate_employee_data %}データ構造OK{% else %}データ構造エラー{% endif %}
+    **データ処理完了**: 全処理ステップ実行済み
     
     ---
     *このレポートはbakufu v0.4.0の新機能を使用して生成されました*

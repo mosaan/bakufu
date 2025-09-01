@@ -4,10 +4,12 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from ..step_registry import step_type
 from .base import TextProcessStep
 from .split import SplitStep
 
 
+@step_type("text_process", "fixed_split")
 class FixedSplitStep(TextProcessStep):
     """Fixed-size splitting text processing step"""
 

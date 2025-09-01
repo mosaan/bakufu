@@ -28,7 +28,7 @@ class WorkflowExecutionResult(BaseModel):
 
     success: bool = Field(description="Whether the workflow executed successfully")
     workflow_name: str = Field(description="Name of the executed workflow")
-    result: Any = Field(description="Workflow execution result")
+    result: Any = Field(None, description="Workflow execution result")
     error_message: str | None = Field(None, description="Error message if execution failed")
     usage_summary: dict[str, Any] | None = Field(None, description="AI usage summary")
     execution_time: float | None = Field(None, description="Execution time in seconds")
@@ -154,8 +154,8 @@ class MCPWorkflowIntegrator:
                     execution_time=None,
                 )
 
-            # Process input arguments
-            processed_inputs = self.input_processor.process_mcp_inputs(input_arguments)
+            # Process input arguments using new structured format (with backward compatibility)
+            processed_inputs = self.input_processor.process_structured_inputs(input_arguments)
 
             # Apply default values for missing optional parameters
             processed_inputs = self._apply_default_values(workflow_def, processed_inputs)

@@ -99,6 +99,213 @@ YAML形式のテキストを構造化データに変換します。
 - マルチライン文字列
 - アンカーとエイリアス
 
+## 新機能: Jinja2テンプレート形式化（format）
+
+### テンプレート形式化 (`format`)
+
+**概要**:
+`format`メソッドは、Jinja2テンプレートエンジンを使用してテキストを動的に生成する新しい機能です。AI呼び出しを使わずに、純粋なテンプレート処理でテキストを形式化できます。
+
+**基本的な使用法**:
+```yaml
+- id: simple_greeting
+  type: text_process
+  method: format
+  template: "Hello {{ user_name }}! You are {{ user_age }} years old."
+  input: "dummy"  # format メソッドでは使用されないが、基底クラスで必須
+```
+
+**出力例**:
+```
+Hello TestUser! You are 25 years old.
+```
+
+### 主要機能
+
+#### 1. 条件分岐
+```yaml
+- id: conditional_message
+  type: text_process
+  method: format
+  template: |
+    {% if user_age >= 18 %}
+    Welcome, {{ user_name }}! You are an adult.
+    {% else %}
+    Hi {{ user_name }}! You are still a minor.
+    {% endif %}
+  input: "dummy"
+```
+
+#### 2. ループ処理
+```yaml
+- id: product_list
+  type: text_process
+  method: format
+  template: |
+    Product Report:
+    {% for item in products %}
+    {{ loop.index }}. {{ item.name }} - {{ item.price }}円
+    {% endfor %}
+  input: "dummy"
+```
+
+#### 3. ステップ結果の参照
+```yaml
+- id: step_reference_example
+  type: text_process
+  method: format
+  template: |
+    Processing Results:
+    - Data count: {{ steps.previous_step.result | length }}
+    - First item: {{ steps.previous_step.result[0].name }}
+  input: "dummy"
+```
+
+#### 4. 高度なフィルタリング
+```yaml
+- id: advanced_formatting
+  type: text_process
+  method: format
+  template: |
+    {% set expensive_items = products | selectattr('price', '>', 10000) | list %}
+    {% set cheap_items = products | selectattr('price', '<=', 10000) | list %}
+    
+    Expensive Items ({{ expensive_items | length }}):
+    {% for item in expensive_items %}
+    - {{ item.name }}: {{ item.price }}円
+    {% endfor %}
+    
+    Affordable Items ({{ cheap_items | length }}):
+    {% for item in cheap_items %}
+    - {{ item.name }}: {{ item.price }}円
+    {% endfor %}
+  input: "dummy"
+```
+
+### 利用可能なJinja2機能
+
+#### 変数とデータアクセス
+- `{{ variable }}` - 変数の値を出力
+- `{{ dict.key }}` - 辞書のキーアクセス
+- `{{ list[0] }}` - リストの要素アクセス
+- `{{ steps.step_id.result }}` - 他のステップの結果を参照
+
+#### 制御構造
+- `{% if condition %}...{% endif %}` - 条件分岐
+- `{% for item in items %}...{% endfor %}` - ループ処理
+- `{% set variable = value %}` - 変数設定
+
+#### フィルタ
+- `{{ text | upper }}` - 大文字変換
+- `{{ text | lower }}` - 小文字変換
+- `{{ text | title }}` - タイトルケース変換
+- `{{ list | length }}` - リストの長さ
+- `{{ list | first }}` - リストの最初の要素
+- `{{ list | last }}` - リストの最後の要素
+- `{{ list | sum }}` - リストの合計
+- `{{ list | sum(attribute='price') }}` - 属性の合計
+- `{{ list | selectattr('price', '>', 1000) }}` - 条件でフィルタ
+- `{{ list | groupby('category') }}` - グループ化
+- `{{ data | tojson }}` - JSON形式で出力
+
+#### マクロ
+```yaml
+template: |
+  {% macro format_price(price) %}
+  {% if price >= 10000 %}
+  {{ "%.1f"|format(price/10000) }}万円
+  {% else %}
+  {{ price }}円
+  {% endif %}
+  {% endmacro %}
+  
+  Price: {{ format_price(product.price) }}
+```
+
+### 実用的な使用例
+
+#### 1. セキュリティチェックリストのバッチ処理
+```yaml
+- id: security_checklist_batch
+  type: text_process
+  method: format
+  template: |
+    Security Checklist Review ({{ (items | length / 3) | round | int }} batches):
+    
+    {% for batch in items | batch(3) %}
+    ## Batch {{ loop.index }}
+    {% for item in batch %}
+    {{ loop.index }}. {{ item.title }}
+       Status: {{ item.status }}
+       Priority: {{ item.priority }}
+    {% endfor %}
+    
+    {% endfor %}
+  input: "dummy"
+```
+
+#### 2. レポート生成
+```yaml
+- id: monthly_report
+  type: text_process
+  method: format
+  template: |
+    # 月次レポート {{ now().strftime('%Y-%m') }}
+    
+    ## 概要
+    - 処理件数: {{ data | length }}
+    - 成功率: {{ (data | selectattr('status', 'eq', 'success') | list | length / data | length * 100) | round(1) }}%
+    
+    ## 詳細
+    {% for category, items in data | groupby('category') %}
+    ### {{ category | title }}
+    {% for item in items %}
+    - {{ item.name }}: {{ item.value }}
+    {% endfor %}
+    {% endfor %}
+  input: "dummy"
+```
+
+### エラーハンドリング
+
+FormatStepは、テンプレートエラーに対して詳細なエラーメッセージを提供します：
+
+```yaml
+# テンプレートエラーの例
+- id: invalid_template
+  type: text_process
+  method: format
+  template: "{{ undefined_variable }}"  # エラー: 未定義変数
+  input: "dummy"
+```
+
+**エラーメッセージ例**:
+```
+Template rendering error: 'undefined_variable' is undefined
+```
+
+### パフォーマンス特性
+
+- **高速処理**: AI呼び出しが不要なため、非常に高速
+- **メモリ効率**: テンプレートエンジンによる効率的な処理
+- **スケーラビリティ**: 大量のデータ処理に適している
+
+### 適用シーン
+
+1. **データの再構成**: 構造化データの表示形式変換
+2. **レポート生成**: 定型的なレポートの自動生成
+3. **バッチ処理**: 複数項目をまとめた処理
+4. **条件分岐**: 入力データに基づく動的な出力生成
+5. **フィルタリング**: 特定の条件でのデータ抽出と表示
+
+### 制限事項
+
+- **AIによる推論は不可**: 純粋なテンプレート処理のみ
+- **複雑なロジック**: 複雑なビジネスロジックは不適切
+- **外部API呼び出し**: 外部サービスとの連携は不可
+
+FormatStepは、AI処理と組み合わせることで、効率的で柔軟なワークフローを構築できる強力なツールです。
+
 ## 入力ファイル処理での使用
 
 これらの機能は、ワークフローの入力ファイル処理でも利用できます：

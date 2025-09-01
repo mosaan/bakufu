@@ -4,9 +4,11 @@ import json
 from typing import Any, Literal
 
 from ..exceptions import ErrorContext, StepExecutionError
+from ..step_registry import step_type
 from .base import TextProcessStep
 
 
+@step_type("text_process", "json_parse")
 class JsonParseStep(TextProcessStep):
     """JSON parsing text processing step"""
 

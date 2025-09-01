@@ -10,7 +10,7 @@ Bakufuの各機能の詳細仕様と使用方法を説明します。
 
 ## 🔗 関連機能リファレンス
 
-- **[長大出力制御](../08-reference/large-output-control.md)** - MCPサーバでの大容量出力管理
+- **[長大出力制御](../07-reference/large-output-control.md)** - MCPサーバでの大容量出力管理
 
 ## 🎯 機能カテゴリ
 

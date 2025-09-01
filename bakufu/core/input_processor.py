@@ -1,11 +1,71 @@
 """File input processing module for bakufu"""
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from .exceptions import BakufuError
 from .text_processing import CsvProcessor, JsonProcessor, YamlProcessor
+
+
+@dataclass
+class FileInputSpec:
+    """Represents the specification for a file input."""
+
+    path: str
+    file_format: str
+    encoding: str
+
+
+class FileLoader(Protocol):
+    """Protocol for file loader strategies."""
+
+    def load(self, spec: FileInputSpec) -> Any: ...
+
+
+class TextFileLoader:
+    """Loads a file as a single text string."""
+
+    def load(self, spec: FileInputSpec) -> Any:
+        with open(spec.path, encoding=spec.encoding) as f:
+            return f.read()
+
+
+class LinesFileLoader:
+    """Loads a file as a list of lines."""
+
+    def load(self, spec: FileInputSpec) -> Any:
+        with open(spec.path, encoding=spec.encoding) as f:
+            return [line.rstrip("\n\r") for line in f]
+
+
+class JsonFileLoader:
+    """Loads and parses a JSON file."""
+
+    def load(self, spec: FileInputSpec) -> Any:
+        return JsonProcessor.parse_json_file(spec.path, spec.encoding)
+
+
+class YamlFileLoader:
+    """Loads and parses a YAML file."""
+
+    def load(self, spec: FileInputSpec) -> Any:
+        return YamlProcessor.parse_yaml_file(spec.path, spec.encoding)
+
+
+class CsvFileLoader:
+    """Loads and parses a CSV file."""
+
+    def load(self, spec: FileInputSpec) -> Any:
+        return CsvProcessor.parse_csv_file(spec.path, spec.encoding)
+
+
+class TsvFileLoader:
+    """Loads and parses a TSV file."""
+
+    def load(self, spec: FileInputSpec) -> Any:
+        return CsvProcessor.parse_tsv_file(spec.path, spec.encoding)
 
 
 class FileInputProcessor:
@@ -53,7 +113,7 @@ class FileInputProcessor:
 
         # Parse path specification with optional format and encoding
         # Handle Windows absolute paths properly
-        file_path, file_format, encoding = self._parse_path_spec(path_spec)
+        file_spec = self._parse_path_spec(path_spec)
 
         # Validate key
         if not key:
@@ -62,10 +122,10 @@ class FileInputProcessor:
             )
 
         # Load and process the file
-        file_data = self._load_file(file_path, file_format, encoding)
+        file_data = self._load_file(file_spec)
         return key, file_data
 
-    def _parse_path_spec(self, path_spec: str) -> tuple[str, str, str]:
+    def _parse_path_spec(self, path_spec: str) -> FileInputSpec:
         """Parse path specification handling Windows absolute paths.
 
         Args:
@@ -83,7 +143,7 @@ class FileInputProcessor:
         else:
             return self._parse_unix_path_spec(path_spec)
 
-    def _parse_windows_path_spec(self, path_spec: str) -> tuple[str, str, str]:
+    def _parse_windows_path_spec(self, path_spec: str) -> FileInputSpec:
         """Parse Windows absolute path specification."""
         import re
 
@@ -98,7 +158,7 @@ class FileInputProcessor:
 
         if ":" not in remaining_spec:
             # No format/encoding specifiers - entire spec is path
-            return path_spec, self._detect_format(path_spec), "utf-8"
+            return FileInputSpec(path_spec, self._detect_format(path_spec), "utf-8")
 
         # Split from the right to handle colons in the path properly
         parts = remaining_spec.rsplit(":", MAX_SPLITS)
@@ -110,7 +170,7 @@ class FileInputProcessor:
         drive_part: str,
         parts: list[str],
         known_formats: set[str],
-    ) -> tuple[str, str, str]:
+    ) -> FileInputSpec:
         """Parse Windows path parts to extract file path, format, and encoding."""
         # Constants for parts count
         PARTS_COUNT_NO_SPEC = 1
@@ -119,28 +179,20 @@ class FileInputProcessor:
 
         if len(parts) == PARTS_COUNT_NO_SPEC:
             # No format/encoding specified
-            return path_spec, self._detect_format(path_spec), "utf-8"
+            return FileInputSpec(path_spec, self._detect_format(path_spec), "utf-8")
         elif len(parts) == PARTS_COUNT_WITH_FORMAT:
-            # One specifier: could be format
+            # One specifier: treat as format (even if unknown)
             potential_format = parts[1]
-            if potential_format.lower() in known_formats:
-                return drive_part + parts[0], potential_format, "utf-8"
-            else:
-                # Part of path
-                return path_spec, self._detect_format(path_spec), "utf-8"
+            return FileInputSpec(drive_part + parts[0], potential_format, "utf-8")
         elif len(parts) == PARTS_COUNT_WITH_FORMAT_AND_ENCODING:
             # Two specifiers: format:encoding
             potential_format, potential_encoding = parts[1], parts[2]
-            if potential_format.lower() in known_formats:
-                return drive_part + parts[0], potential_format, potential_encoding
-            else:
-                # Neither looks like specifiers
-                return path_spec, self._detect_format(path_spec), "utf-8"
+            return FileInputSpec(drive_part + parts[0], potential_format, potential_encoding)
         else:
             # More than 2 splits - likely path with many colons
-            return path_spec, self._detect_format(path_spec), "utf-8"
+            return FileInputSpec(path_spec, self._detect_format(path_spec), "utf-8")
 
-    def _parse_unix_path_spec(self, path_spec: str) -> tuple[str, str, str]:
+    def _parse_unix_path_spec(self, path_spec: str) -> FileInputSpec:
         """Parse Unix/relative path specification."""
         MAX_SPLITS = 2
         PARTS_WITH_FORMAT = 2
@@ -150,7 +202,7 @@ class FileInputProcessor:
         file_format = parts[1] if len(parts) > 1 else self._detect_format(file_path)
         encoding = parts[PARTS_WITH_FORMAT] if len(parts) > PARTS_WITH_FORMAT else "utf-8"
 
-        return file_path, file_format, encoding
+        return FileInputSpec(file_path, file_format, encoding)
 
     def _detect_format(self, file_path: str) -> str:
         """Detect file format based on file extension"""
@@ -167,25 +219,25 @@ class FileInputProcessor:
 
         return format_map.get(extension, "text")
 
-    def _load_file(self, file_path: str, file_format: str, encoding: str) -> Any:
+    def _load_file(self, spec: FileInputSpec) -> Any:
         """Load a file with the specified format and encoding"""
         # Validate file path and security constraints
-        self._validate_file_path(file_path)
+        self._validate_file_path(spec.path)
 
         try:
-            self._validate_file_constraints(file_path)
-            return self._load_file_by_format(file_path, file_format, encoding)
+            self._validate_file_constraints(spec.path)
+            return self._load_file_by_format(spec)
 
         except BakufuError:
             raise
         except FileNotFoundError as e:
-            raise BakufuError(f"File not found: '{file_path}'", "FILE_NOT_FOUND") from e
+            raise BakufuError(f"File not found: '{spec.path}'", "FILE_NOT_FOUND") from e
         except PermissionError as e:
             raise BakufuError(
-                f"Permission denied accessing file: '{file_path}'", "FILE_PERMISSION_DENIED"
+                f"Permission denied accessing file: '{spec.path}'", "FILE_PERMISSION_DENIED"
             ) from e
         except Exception as e:
-            raise BakufuError(f"Error loading file '{file_path}': {e}", "FILE_LOAD_ERROR") from e
+            raise BakufuError(f"Error loading file '{spec.path}': {e}", "FILE_LOAD_ERROR") from e
 
     def _validate_file_constraints(self, file_path: str) -> None:
         """Validate file size and binary constraints"""
@@ -203,26 +255,26 @@ class FileInputProcessor:
                 f"Binary files are not supported: '{file_path}'", "BINARY_FILE_NOT_SUPPORTED"
             )
 
-    def _load_file_by_format(self, file_path: str, file_format: str, encoding: str) -> Any:
-        """Load file content based on format"""
-        format_loaders = {
-            "text": self._load_text_file,
-            "lines": self._load_lines_file,
-            "json": self._load_json_file,
-            "yaml": self._load_yaml_file,
-            "csv": self._load_csv_file,
-            "tsv": self._load_tsv_file,
+    def _load_file_by_format(self, spec: FileInputSpec) -> Any:
+        """Load file content based on format using strategy pattern."""
+        format_loaders: dict[str, FileLoader] = {
+            "text": TextFileLoader(),
+            "lines": LinesFileLoader(),
+            "json": JsonFileLoader(),
+            "yaml": YamlFileLoader(),
+            "csv": CsvFileLoader(),
+            "tsv": TsvFileLoader(),
         }
 
-        loader = format_loaders.get(file_format)
+        loader = format_loaders.get(spec.file_format)
         if not loader:
             raise BakufuError(
-                f"Unsupported file format: '{file_format}'. "
+                f"Unsupported file format: '{spec.file_format}'. "
                 f"Supported formats: {', '.join(format_loaders.keys())}",
                 "UNSUPPORTED_FILE_FORMAT",
             )
 
-        return loader(file_path, encoding)
+        return loader.load(spec)
 
     def _validate_file_path(self, file_path: str) -> None:
         """Validate file path for security constraints"""
@@ -287,29 +339,3 @@ class FileInputProcessor:
 
         # If more than threshold are control characters, likely binary
         return len(chunk) > 0 and (control_chars / len(chunk)) > self.CONTROL_CHAR_THRESHOLD
-
-    def _load_text_file(self, file_path: str, encoding: str) -> str:
-        """Load a text file and return its content as a string"""
-        with open(file_path, encoding=encoding) as f:
-            return f.read()
-
-    def _load_lines_file(self, file_path: str, encoding: str) -> list[str]:
-        """Load a text file and return its content as a list of lines"""
-        with open(file_path, encoding=encoding) as f:
-            return [line.rstrip("\n\r") for line in f]
-
-    def _load_json_file(self, file_path: str, encoding: str) -> Any:
-        """Load a JSON file and return the parsed content"""
-        return JsonProcessor.parse_json_file(file_path, encoding)
-
-    def _load_yaml_file(self, file_path: str, encoding: str) -> Any:
-        """Load a YAML file and return the parsed content"""
-        return YamlProcessor.parse_yaml_file(file_path, encoding)
-
-    def _load_csv_file(self, file_path: str, encoding: str) -> list[dict[str, str]]:
-        """Load a CSV file and return the content as a list of dictionaries"""
-        return CsvProcessor.parse_csv_file(file_path, encoding)
-
-    def _load_tsv_file(self, file_path: str, encoding: str) -> list[dict[str, str]]:
-        """Load a TSV file and return the content as a list of dictionaries"""
-        return CsvProcessor.parse_tsv_file(file_path, encoding)

@@ -6,34 +6,15 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from .models import (
-    AICallStep,
-    CollectionStep,
-    ConditionalStep,
-    FilterOperation,
-    MapOperation,
-    PipelineOperation,
-    ReduceOperation,
-    Workflow,
-)
+# Import step classes to trigger their @step_type decorators
+from .models import Workflow
+from .models.steps import ai, collection, conditional  # noqa: F401
+from .models.steps.ai import AICallStep
+from .models.steps.collection import CollectionStep
+from .models.steps.conditional import ConditionalStep
+from .step_registry import get_global_registry
 from .text_steps import (
     AnyTextProcessStep,
-    ArrayAggregateStep,
-    ArrayFilterStep,
-    ArraySortStep,
-    ArrayTransformStep,
-    CsvParseStep,
-    ExtractBetweenMarkerStep,
-    FixedSplitStep,
-    JsonParseStep,
-    MarkdownSplitStep,
-    ParseAsJsonStep,
-    RegexExtractStep,
-    ReplaceStep,
-    SelectItemStep,
-    SplitStep,
-    TsvParseStep,
-    YamlParseStep,
 )
 
 
@@ -111,10 +92,12 @@ class WorkflowLoader:
     def _transform_steps(
         cls, steps_data: list
     ) -> list[AICallStep | AnyTextProcessStep | CollectionStep | ConditionalStep]:
-        """Transform steps data to proper step objects"""
+        """Transform steps data to proper step objects using StepRegistry"""
         transformed_steps: list[
             AICallStep | AnyTextProcessStep | CollectionStep | ConditionalStep
         ] = []
+
+        registry = get_global_registry()
 
         for i, step_data in enumerate(steps_data):
             if not isinstance(step_data, dict):
@@ -124,67 +107,24 @@ class WorkflowLoader:
             if not step_type:
                 raise ValueError(f"Step {i} missing required 'type' field")
 
-            if step_type == "ai_call":
-                transformed_steps.append(AICallStep(**step_data))
-            elif step_type == "text_process":
-                text_step = cls._create_text_process_step(step_data, i)
-                transformed_steps.append(text_step)
-            elif step_type == "collection":
-                collection_step = cls._create_collection_step(step_data, i)
-                transformed_steps.append(collection_step)
-            elif step_type == "conditional":
-                conditional_step = cls._create_conditional_step(step_data, i)
-                transformed_steps.append(conditional_step)
-            else:
-                raise ValueError(f"Unknown step type '{step_type}' in step {i}")
+            try:
+                # Special handling for conditional steps with nested steps
+                if step_type == "conditional":
+                    step = cls._create_conditional_step(step_data, i)
+                else:
+                    # Use registry for all other step types
+                    step = registry.create_step(step_data)  # type: ignore
+
+                transformed_steps.append(step)
+
+            except Exception as e:
+                available_types = registry.get_registered_types()
+                raise ValueError(
+                    f"Failed to create step {i} of type '{step_type}': {e}. "
+                    f"Available types: {', '.join(available_types)}"
+                ) from e
 
         return transformed_steps
-
-    @classmethod
-    def _create_text_process_step(cls, step_data: dict, step_index: int) -> AnyTextProcessStep:
-        """Create specific text processing step based on method"""
-        method = step_data.get("method")
-
-        step_classes = {
-            "regex_extract": RegexExtractStep,
-            "replace": ReplaceStep,
-            "json_parse": JsonParseStep,
-            "csv_parse": CsvParseStep,
-            "tsv_parse": TsvParseStep,
-            "yaml_parse": YamlParseStep,
-            "markdown_split": MarkdownSplitStep,
-            "fixed_split": FixedSplitStep,
-            "array_filter": ArrayFilterStep,
-            "array_transform": ArrayTransformStep,
-            "array_aggregate": ArrayAggregateStep,
-            "array_sort": ArraySortStep,
-            "split": SplitStep,
-            "extract_between_marker": ExtractBetweenMarkerStep,
-            "select_item": SelectItemStep,
-            "parse_as_json": ParseAsJsonStep,
-        }
-
-        if method not in step_classes:
-            raise ValueError(f"Unknown text processing method '{method}' in step {step_index}")
-
-        return step_classes[method](**step_data)  # type: ignore
-
-    @classmethod
-    def _create_collection_step(cls, step_data: dict, step_index: int) -> "CollectionStep":
-        """Create specific collection step based on operation"""
-        operation = step_data.get("operation")
-
-        step_classes = {
-            "map": MapOperation,
-            "filter": FilterOperation,
-            "reduce": ReduceOperation,
-            "pipeline": PipelineOperation,
-        }
-
-        if operation not in step_classes:
-            raise ValueError(f"Unknown collection operation '{operation}' in step {step_index}")
-
-        return step_classes[operation](**step_data)  # type: ignore
 
     @classmethod
     def _format_validation_errors(cls, error: ValidationError) -> str:

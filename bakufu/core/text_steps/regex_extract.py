@@ -4,9 +4,11 @@ from typing import Literal
 
 from pydantic import Field, field_validator
 
+from ..step_registry import step_type
 from .base import TextProcessStep
 
 
+@step_type("text_process", "regex_extract")
 class RegexExtractStep(TextProcessStep):
     """Regex extraction text processing step"""
 
@@ -27,7 +29,7 @@ class RegexExtractStep(TextProcessStep):
         import re
 
         from ..exceptions import ErrorContext, StepExecutionError
-        from ..text_processing import TextExtractor
+        from ..text_processing import extract_by_regex
 
         if not self.pattern:
             raise StepExecutionError(
@@ -50,7 +52,7 @@ class RegexExtractStep(TextProcessStep):
                 flag_value |= flag_map[flag]
 
         try:
-            matches = TextExtractor.extract_by_regex(input_data, self.pattern, flags=flag_value)
+            matches = extract_by_regex(input_data, self.pattern, flags=flag_value)
 
             if self.output_format == "array":
                 return matches
